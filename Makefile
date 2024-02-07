@@ -17,5 +17,5 @@ LIBS = -lpspreg -lpspumd -lpsprtc
 
 OBJS =  main.o
 
-PSPSDK = $(shell psp-config --pspsdk-path)
+PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build_prx.mak

@@ -12,6 +12,7 @@
 #define printf pspDebugScreenKprintf
 #define RGB(r, g, b) ((r)|((g)<<8)|((b)<<16))
 
+
 PSP_MODULE_INFO("UMDKiller", 0x1001, 1, 1);
 PSP_MAIN_THREAD_ATTR(0);
 
@@ -20,11 +21,9 @@ void threadschanger(int stat, SceUID threadlist[], int threadnumber);
 
 SceCtrlData pad;
 
-char *umdbuffer,discid[11],title[17],isopath[25],gtype[3];
-int version,threadnumber,read,fd,umdsize,dir,dumppercent,written=0;
+char *umdbuffer,discid[11],title[17],isopath[30],gtype[3];
+int threadnumber,read,fd,umdsize,dir,dumppercent,written=0;
 SceUID umd,iso,threadlist[66],st_thlist_first[66],st_thnum_first;
-
-int version=2.0;
 
 int st_thread( SceSize args, void *argp )
 {
@@ -39,33 +38,27 @@ int st_thread( SceSize args, void *argp )
   return 0;
 }
 
+// pspDebugScreenSetXY(X,Y) has a max of 60x34 character units (1 character = 8 pixels)
+
 int start_dumper()
-{ // define bg/fg color scheme
+{ 
 	pspDebugScreenInit();
-	pspDebugScreenSetBackColor(RGB(0,0,0));
-	pspDebugScreenSetTextColor(RGB(0,255,0));
+	pspDebugScreenSetBackColor(RGB(0,0,0)); pspDebugScreenSetTextColor(RGB(0,255,0));
 	pspDebugScreenClear();
 	
-
 	if(!(umdbuffer=malloc(1048576))){
 		pspDebugScreenClear();
-  	pspDebugScreenSetXY(0, 0);
-    printf("CRITICAL ERROR : IMPOSSIBLE TO ALLOCATE MEMORY");
-    pspDebugScreenSetXY(0, 4);
-    printf("Auto-Exiting in 30 seconds...");
-    sceDisplayWaitVblankStart();
-    sceKernelDelayThread(30*1000*1000);
+  	pspDebugScreenSetXY(0, 0); printf("CRITICAL ERROR : IMPOSSIBLE TO ALLOCATE MEMORY");
+    pspDebugScreenSetXY(0, 4); printf("Auto-Exiting in 30 seconds...");
+    sceDisplayWaitVblankStart(); sceKernelDelayThread(30*1000*1000);
   }
   
 	if(sceUmdCheckMedium()==0){
    	return 0;
   }
   
-  sceKernelGetThreadmanIdList( SCE_KERNEL_TMID_Thread, threadlist, 66, &threadnumber );
-  threadschanger( 0, threadlist, threadnumber );
-  
-  sceUmdActivate(1, "disc0:");
-	sceUmdWaitDriveStat(PSP_UMD_READY);
+  sceKernelGetThreadmanIdList( SCE_KERNEL_TMID_Thread, threadlist, 66, &threadnumber ); threadschanger( 0, threadlist, threadnumber );
+  sceUmdActivate(1, "disc0:"); sceUmdWaitDriveStat(PSP_UMD_READY);
 	
     // read until offset 00000010 into discid variable from "disc0:/UMD_DATA.BIN"
 	fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777);
@@ -75,22 +68,24 @@ int start_dumper()
 		discid[10]=0;
    	sceIoClose(fd);
   }
-    // read in size of UMD disc to umdsize
+
+    // read size of UMD disc to umdsize
   fd = sceIoOpen("umd0:", PSP_O_RDONLY, 0777);
 	if(fd >= 0){
 		umdsize=sceIoLseek(fd,0,SEEK_END);
    	sceIoClose(fd);
   }
   
-    // read offset 00000021 into gtype from "disc0:/UMD_DATA.BIN", determines whether or not the disc is a game or video, denoted by G or V
+    // read offset 00000021 into gtype from "disc0:/UMD_DATA.BIN", determines whether or not the disc is a [G]ame or [V]ideo
+  fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777); 
 	if(fd >= 0){
 		sceIoLseek(fd, 0x21, SEEK_SET); 
 		sceIoRead(fd, gtype, 3);
 		sceIoClose(fd);
  	}
 	
-    // Fix this, determines content name from existence of gtype variable and "PARAM.SFO" located in "/PSP_GAME" or "/UMD_VIDEO"
-	if(gtype[0]=='G'){ // if gtype is GAME
+    // Fix this, determines content name from gtype variable and "PARAM.SFO" located in "/PSP_GAME" or "/UMD_VIDEO"
+	if(gtype[0]=='G'){ 
   	fd = sceIoOpen("disc0:/PSP_GAME/PARAM.SFO", PSP_O_RDONLY, 0777);
 		if(fd >= 0) {
 			sceIoLseek(fd, 0x158, SEEK_SET);
@@ -99,8 +94,8 @@ int start_dumper()
   		sceIoClose(fd);
 		}
   }
-  
-  else if(gtype[0]=='V'){ // if gtype is VIDEO
+
+  else if(gtype[0]=='V'){
   	fd = sceIoOpen("disc0:/UMD_VIDEO/PARAM.SFO", PSP_O_RDONLY, 0777);
 		if(fd >= 0) {
 			sceIoLseek(fd, 0x50, SEEK_SET);
@@ -110,47 +105,37 @@ int start_dumper()
 		}
   }
   
+    // Clear debug screen
   pspDebugScreenClear();
 
-    // Present disc information
+    // While loop to present disc information until Start is pressed (exiting) or X is pressed (exiting loop and following code logic)
 	do{
-		sceCtrlPeekBufferPositive(&pad,1);
-		pspDebugScreenSetXY(15, 7);
-    printf("UMDKillerPRX %s",version);
-	  pspDebugScreenSetXY(7, 10);
-	  printf("Content Title: %s",title);
-	  pspDebugScreenSetXY(7, 14);
-   	printf("Type: %s",gtype);
-   	pspDebugScreenSetXY(7, 18);
-   	printf("Disc ID: %s",discid);
-   	pspDebugScreenSetXY(7,22);
-   	printf("Size: %d",umdsize);
-		
-		pspDebugScreenSetXY(12, 27);
-    printf("PRESS X TO DUMP OR PRESS START TO EXIT");
-  
+    sceCtrlPeekBufferPositive(&pad,1);
+    pspDebugScreenSetXY(0, 0); printf("%66s", "UMDKillerPRX 2.0");     
+	  pspDebugScreenSetXY(7, 10); printf("Title: %s",title);
+	  pspDebugScreenSetXY(7, 12); printf("Type: %s",gtype);
+   	pspDebugScreenSetXY(7, 14); printf("Disc ID: %s",discid);
+   	pspDebugScreenSetXY(7, 16); printf("Size: %d",umdsize);
+		pspDebugScreenSetXY(0, 32); printf("%66s", "PRESS X TO DUMP OR PRESS START TO EXIT");
+
+      // Wait for vertical blank start
     sceDisplayWaitVblankStart();	
-    
-    // if start is pressed, quit program
+
+    // if start is pressed, quit program - Fix, this  removes ability to interact with xmb after exiting
     if(pad.Buttons & PSP_CTRL_START){
     	threadschanger( 1, threadlist, threadnumber );
- 
    		return 0;
    	}
-  
     // if X is pressed, start dump logic
   }while(!(pad.Buttons & PSP_CTRL_CROSS));
   
-    // Open UMD disc for access and throw error if unsuccessful
+    // Open UMD disc in read-only mode and throw error if unsuccessful
   umd = sceIoOpen("umd0:", PSP_O_RDONLY, 0777); 
   if(umd<0){
   	pspDebugScreenClear();
-  	pspDebugScreenSetXY(0, 0);
-    printf("CRITICAL ERROR : IMPOSSIBLE TO OPEN UMD0");
-    pspDebugScreenSetXY(0, 4);
-    printf("Auto-Exiting in 30 seconds...");
-    sceDisplayWaitVblankStart();
-    sceKernelDelayThread(30*1000*1000);
+  	pspDebugScreenSetXY(0, 0); printf("CRITICAL ERROR : IMPOSSIBLE TO OPEN UMD0");
+    pspDebugScreenSetXY(0, 4); printf("Auto-Exiting in 30 seconds...");
+    sceDisplayWaitVblankStart(); sceKernelDelayThread(30*1000*1000);
   }
 
     // Create "ms0:/ISO/" directory if it doesn't already exist
@@ -171,21 +156,20 @@ int start_dumper()
   else{
   	int k;
   	for(k=0;k<11;k++)
-  		if(discid[k]==' ')
-  			discid[k]='.';
+  		if(discid[k]==' ' || discid[k]==':')
+  			discid[k]='_';
   	sprintf(isopath, "ms0:/ISO/VIDEO/%s.iso",discid);		
   }
 
-    // dump iso, *if isopath contains invalid characters this will result in MS0 error and break flow of logic, fix this
-  iso= sceIoOpen(isopath, PSP_O_WRONLY| PSP_O_CREAT | PSP_O_TRUNC, 0777);
+    // dump UMD to ISO
+  iso=sceIoOpen(isopath, PSP_O_WRONLY| PSP_O_CREAT | PSP_O_TRUNC, 0777);
+
+    // if isopath contains invalid characters or MS:0 is unable to be reached, this will result in MS0 error
   if(iso<0){
   	pspDebugScreenClear();
-  	pspDebugScreenSetXY(0, 0);
-    printf("CRITICAL ERROR : IMPOSSIBLE TO ACCESS MS0");
-    pspDebugScreenSetXY(0, 4);
-    printf("Auto-Exiting in 30 seconds...");
-    sceDisplayWaitVblankStart();
-    sceKernelDelayThread(30*1000*1000);
+  	pspDebugScreenSetXY(0, 0); printf("CRITICAL ERROR : IMPOSSIBLE TO ACCESS MS0");
+    pspDebugScreenSetXY(0, 4); printf("Auto-Exiting in 30 seconds...");
+    sceDisplayWaitVblankStart(); sceKernelDelayThread(30*1000*1000);
   }
   
     // if iso will take up more space than available on memory stick, quit
@@ -196,12 +180,9 @@ int start_dumper()
 			sceIoClose(iso);
 			sceIoRemove(isopath);
 			pspDebugScreenClear();
-  		pspDebugScreenSetXY(0, 0);
-    	printf("Impossible to write to ms. Not enough free space?");
-    	pspDebugScreenSetXY(0, 4);
-    	printf("Auto-Exiting in 30 seconds...");
-    	sceDisplayWaitVblankStart();
-    	sceKernelDelayThread(30*1000*1000);
+  		pspDebugScreenSetXY(0, 0); printf("Impossible to write to ms. Not enough free space?");
+    	pspDebugScreenSetXY(0, 4); printf("Auto-Exiting in 30 seconds...");
+    	sceDisplayWaitVblankStart(); sceKernelDelayThread(30*1000*1000);
 		}
 		
       // if UMD disc throws read errors, quit
@@ -209,47 +190,36 @@ int start_dumper()
     	sceIoClose(iso);
     	sceIoRemove(isopath);
     	pspDebugScreenClear();
-  		pspDebugScreenSetXY(0, 0);
-    	printf("UMD read error!");
-    	pspDebugScreenSetXY(0, 4);
-    	printf("Auto-Exiting in 30 seconds...");
-    	sceDisplayWaitVblankStart();
-    	sceKernelDelayThread(30*1000*1000);
+  		pspDebugScreenSetXY(0, 0); printf("UMD read error!");
+    	pspDebugScreenSetXY(0, 4); printf("Auto-Exiting in 30 seconds...");
+    	sceDisplayWaitVblankStart(); sceKernelDelayThread(30*1000*1000);
     }
   
       // Print status of current dump
     written+=read;
     dumppercent=(written*100)/umdsize;
-    pspDebugScreenSetXY(15, 7);
-    printf("UMDKillerPRX %s",version);
-    pspDebugScreenSetXY(15, 11);
-    printf("Writing to %s",isopath)
-		pspDebugScreenSetXY(16, 15);
-		printf("Dumping...Sectors: %d/%d - %d%% ",written,umdsize,dumppercent);
+    pspDebugScreenSetXY(0, 0); printf("%66s", "UMDKillerPRX 2.0");
+    pspDebugScreenSetXY(15, 11); printf("Writing to %s",isopath);
+		pspDebugScreenSetXY(16, 15); printf("Dumping...Sectors: %d/%d - %d%% ",written,umdsize,dumppercent);
     sceDisplayWaitVblankStart();	
   }
-  
+   
   sceIoClose(iso);
   
     // Prompt to reboot PSP after successful dump, and do so when START is pressed
   pspDebugScreenClear();
-  pspDebugScreenSetXY(15, 7);
-  printf("UMDKillerPRX %s",version);
-  pspDebugScreenSetXY(15, 11);
-  printf("Successfully wrote to %s",isopath)
-  pspDebugScreenSetXY(15, 15);
-  printf("PRESS START TO REBOOT");
+  pspDebugScreenSetXY(0, 0); printf("%66s", "UMDKillerPRX 2.0");
+  pspDebugScreenSetXY(10, 11); printf("Successfully wrote to %s",isopath); 
+  pspDebugScreenSetXY(25, 15); printf("PRESS START TO REBOOT");
  
   do{
   	sceCtrlPeekBufferPositive(&pad,1);
 
 	}while(!(pad.Buttons & PSP_CTRL_START));	
-   	
-   threadschanger( 1, threadlist, threadnumber );
-   sceKernelExitVSHVSH(NULL);
-   return 0;
+    threadschanger( 1, threadlist, threadnumber );
+    //sceKernelExitVSHVSH(NULL);
+    return 0;
 }
-
 
 int module_start(SceSize args, void *argp)
 {
