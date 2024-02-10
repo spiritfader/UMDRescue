@@ -1,13 +1,12 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <pspsdk.h>
-#include <pspkernel.h>
 #include <pspdebug.h>
 #include <pspctrl.h>
+#include <pspiofilemgr.h>
 #include <pspdisplay.h>
 #include <pspumd.h>
 #include <string.h>
-#include <psploadexec_kernel.h> 
+#include <stdio.h>
+#include <stdlib.h>
 
 #define printf pspDebugScreenKprintf
 #define RGB(r, g, b) ((r)|((g)<<8)|((b)<<16))
@@ -46,12 +45,14 @@ int start_dumper()
 	pspDebugScreenSetBackColor(RGB(0,0,0)); pspDebugScreenSetTextColor(RGB(0,255,0));
 	pspDebugScreenClear();
 	
-	if(!(umdbuffer=malloc(1048576))){
+	oe_mallocinit();
+	if(!(umdbuffer=oe_malloc(512))){
 		pspDebugScreenClear();
-  	pspDebugScreenSetXY(0, 0); printf("CRITICAL ERROR : IMPOSSIBLE TO ALLOCATE MEMORY");
-    pspDebugScreenSetXY(0, 4); printf("Auto-Exiting in 30 seconds...");
-    sceDisplayWaitVblankStart(); sceKernelDelayThread(30*1000*1000);
-  }
+  		pspDebugScreenSetXY(0, 0); printf("CRITICAL ERROR : IMPOSSIBLE TO ALLOCATE MEMORY");
+    		pspDebugScreenSetXY(0, 4); printf("Auto-Exiting in 30 seconds...");
+    	sceDisplayWaitVblankStart(); sceKernelDelayThread(30*1000*1000);
+  	}
+	
   
 	if(sceUmdCheckMedium()==0){
    	return 0;
