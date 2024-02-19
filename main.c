@@ -8,6 +8,7 @@
 #include <pspreg.h>
 #include <psploadexec_kernel.h>
 #include <pspthreadman_kernel.h>
+#include <pspsysmem_kernel.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +25,9 @@ void threadschanger(int stat, SceUID threadlist[], int threadnumber);
 
 SceCtrlData pad;
 
+extern int oe_malloc(int);
+extern int oe_free(int);
+
 char *umdbuffer,discid[64],title[64],isopath[30],gtype[3];
 int threadnumber,read,fd,umdsize,dir,dumppercent,written=0;
 SceUID umd,iso,threadlist[64],st_thlist_first[64];
@@ -32,81 +36,6 @@ SceUID time = 1;
 SceUID time_old;
 SceUID thid;
 
-
-int get_registry_value(const char *dir, const char *name, unsigned int *val)
-{
-        int ret = 0;
-        struct RegParam reg;
-        REGHANDLE h;
-
-        memset(&reg, 0, sizeof(reg));
-        reg.regtype = 1;
-        reg.namelen = strlen("/system");
-        reg.unk2 = 1;
-        reg.unk3 = 1;
-        strcpy(reg.name, "/system");
-        if(sceRegOpenRegistry(&reg, 2, &h) == 0)
-        {
-                REGHANDLE hd;
-                if(!sceRegOpenCategory(h, dir, 2, &hd))
-                {
-                        REGHANDLE hk;
-                        unsigned int type, size;
-
-                        if(!sceRegGetKeyInfo(hd, name, &hk, &type, &size))
-                        {
-                                if(!sceRegGetKeyValue(hd, hk, val, 4))
-                                {
-                                        ret = 1;
-                                        sceRegFlushCategory(hd);
-                                }
-                        }
-                        sceRegCloseCategory(hd);
-                }
-                sceRegFlushRegistry(h);
-                sceRegCloseRegistry(h);
-        }
-
-        return ret;
-}
-
-int set_registry_value(const char *dir, const char *name, unsigned int val)
-{
-        int ret = 0;
-        struct RegParam reg;
-        REGHANDLE h;
-
-        memset(&reg, 0, sizeof(reg));
-        reg.regtype = 1;
-        reg.namelen = strlen("/system");
-        reg.unk2 = 1;
-        reg.unk3 = 1;
-        strcpy(reg.name, "/system");
-        if(sceRegOpenRegistry(&reg, 2, &h) == 0)
-        {
-                REGHANDLE hd;
-                if(!sceRegOpenCategory(h, dir, 2, &hd))
-                {
-                        if(!sceRegSetKeyValue(hd, name, &val, 4))
-                        {
-                                ret = 1;
-                                sceRegFlushCategory(hd);
-                        }
-						else
-						{
-							sceRegCreateKey(hd, name, REG_TYPE_INT, 4);
-							sceRegSetKeyValue(hd, name, &val, 4);
-							ret = 1;
-                            sceRegFlushCategory(hd);
-						}
-                        sceRegCloseCategory(hd);
-                }
-                sceRegFlushRegistry(h);
-                sceRegCloseRegistry(h);
-        }
-
-        return ret;
-}
 
 
 int st_thread( SceSize args, void *argp )
@@ -132,17 +61,16 @@ int start_dumper()
 	pspDebugScreenSetBackColor(RGB(0,0,0)); pspDebugScreenSetTextColor(RGB(0,255,0));
 	pspDebugScreenClear();
 	
-	int psp_model = sceKernelGetModel();
-	int buf = 512*2028;
-	//if(psp_model>0)
-		//buf = 1048576;
-	if(!(umdbuffer=malloc(buf))){
+	int buf = 512*2048;
+
+	if(!(umdbuffer=oe_malloc(buf))){
 		pspDebugScreenClear();
 		pspDebugScreenSetXY(0, 0); printf("CRITICAL ERROR : IMPOSSIBLE TO ALLOCATE MEMORY");
 		pspDebugScreenSetXY(0, 4); printf("Auto-Exiting in 30 seconds...");
 		sceDisplayWaitVblankStart(); 
 		sceKernelDelayThread(30*1000*1000);
 	}
+	
 	
   
 	if(sceUmdCheckMedium()==0){
@@ -224,7 +152,7 @@ int start_dumper()
 
 		// if start is pressed, quit program - Fix, this  removes ability to interact with xmb after exiting
 		if((pad.Buttons & PSP_CTRL_START) == PSP_CTRL_START){
-			free(umdbuffer);
+			oe_free(umdbuffer);
 			sceKernelDelayThread(300000);
 			threadschanger( 1, threadlist, threadnumber );
 			sceKernelDelayThread(3000000);
@@ -310,7 +238,7 @@ int start_dumper()
  
 	sceIoClose(iso);
 	sceIoClose(umd);
-	free(umdbuffer);
+	oe_free(umdbuffer);
   do{
 		sceCtrlPeekBufferPositive(&pad,1);
 		if(pad.Buttons & PSP_CTRL_START) {
