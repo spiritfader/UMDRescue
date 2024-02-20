@@ -23,7 +23,7 @@ PSP_MODULE_INFO("UMDKiller", PSP_MODULE_KERNEL, 1, 1);
 PSP_MAIN_THREAD_ATTR(0);
 
 char* umdreadbuffer = NULL;
-char discid[17] = { 0 };
+char discid[16] = { 0 };
 char title[17] = { 0 };
 char isopath[30] = { 0 };
 char gtype[3] = { 0 };
@@ -97,23 +97,35 @@ static int start_dumper()
     sceUmdActivate(1, "disc0:");
     sceUmdWaitDriveStat(PSP_UMD_READY);
 
-    // read until offset 00000010 into discid variable from "disc0:/UMD_DATA.BIN"
+	
+	// read offset 00000021 into gtype from "disc0:/UMD_DATA.BIN", determines whether or not the disc is a [G]ame or [V]ideo
     fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777);
     if (fd >= 0) {
+        sceIoLseek(fd, 0x21, SEEK_SET);
+        sceIoRead(fd, gtype, 3);
+
+
+    // read until offset 00000010 into discid variable from "disc0:/UMD_DATA.BIN"
         sceIoLseek(fd, 0, SEEK_SET);
 		int i = 0;
 		int j = 0;
-		for(;i<sizeof(discid); i++) {
-			if(discid[i] == '|' || discid[i] == ':') break;
-			else {
-				parsedDiscId[j] = discid[i];
-				j++;
+		if(gtype[0] == 'G') {
+			sceIoRead(fd, discid, 10);
+			strncpy(parsedDiscId, discid, 10);
+		}
+		else {
+			for(;i<sizeof(discid); i++) {
+				if(discid[i] == '|' || discid[i] == ':') break;
+				else {
+					parsedDiscId[j] = discid[i];
+					j++;
+				}
 			}
+        	sceIoRead(fd, parsedDiscId, j-1);
 		}
 
-        sceIoRead(fd, parsedDiscId, j-1);
-        sceIoClose(fd);
     }
+	sceIoClose(fd);
 
     // read size of UMD disc to umdsize
     fd = sceIoOpen("umd0:", PSP_O_RDONLY, 0777);
@@ -122,21 +134,13 @@ static int start_dumper()
         sceIoClose(fd);
     }
 
-    // read offset 00000021 into gtype from "disc0:/UMD_DATA.BIN", determines whether or not the disc is a [G]ame or [V]ideo
-    fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777);
-    if (fd >= 0) {
-        sceIoLseek(fd, 0x21, SEEK_SET);
-        sceIoRead(fd, gtype, 3);
-        sceIoClose(fd);
-    }
-
-    // Fix this, determines content name from gtype variable and "PARAM.SFO" located in "/PSP_GAME" or "/UMD_VIDEO"
+        // Fix this, determines content name from gtype variable and "PARAM.SFO" located in "/PSP_GAME" or "/UMD_VIDEO"
     if (gtype[0] == 'G') {
         fd = sceIoOpen("disc0:/PSP_GAME/PARAM.SFO", PSP_O_RDONLY, 0777);
         if (fd >= 0) {
             sceIoLseek(fd, 0x158, SEEK_SET);
-            sceIoRead(fd, title, 16);
-            title[16] = 0;
+            sceIoRead(fd, title, 17);
+            title[17] = 0;
             sceIoClose(fd);
         }
     }
@@ -166,11 +170,11 @@ static int start_dumper()
         pspDebugScreenSetXY(0, 0);
         printf("%66s", "UMDKillerPRX 2.0");
         pspDebugScreenSetXY(7, 10);
-        printf("Title: %s", parsedTitle);
+        printf("Title: %s", (gtype[0] == 'G') ? title : parsedTitle);
         pspDebugScreenSetXY(7, 12);
         printf("Type: %s", (gtype[0] == 'G') ? "Game" : "Video");
         pspDebugScreenSetXY(7, 14);
-        printf("Disc ID: %s", parsedDiscId);
+        printf("Disc ID: %s", (gtype[0] == 'G') ? discid : parsedDiscId);
         pspDebugScreenSetXY(7, 16);
         printf("Sectors: %d", umdsize + 1);
         pspDebugScreenSetXY(7, 18);
