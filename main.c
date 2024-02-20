@@ -23,7 +23,7 @@ PSP_MODULE_INFO("UMDKiller", PSP_MODULE_KERNEL, 1, 1);
 PSP_MAIN_THREAD_ATTR(0);
 
 char* umdreadbuffer = NULL;
-char discid[11] = { 0 };
+char discid[17] = { 0 };
 char title[17] = { 0 };
 char isopath[30] = { 0 };
 char gtype[3] = { 0 };
@@ -99,8 +99,8 @@ static int start_dumper()
     fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777);
     if (fd >= 0) {
         sceIoLseek(fd, 0, SEEK_SET);
-        sceIoRead(fd, discid, 10);
-        discid[10] = 0;
+        sceIoRead(fd, discid, 16);
+        discid[16] = 0;
         sceIoClose(fd);
     }
 
@@ -133,9 +133,9 @@ static int start_dumper()
     else if (gtype[0] == 'V') {
         fd = sceIoOpen("disc0:/UMD_VIDEO/PARAM.SFO", PSP_O_RDONLY, 0777);
         if (fd >= 0) {
-            sceIoLseek(fd, 0x50, SEEK_SET);
-            sceIoRead(fd, title, 16);
-            title[16] = 0;
+            sceIoLseek(fd, 0x74, SEEK_SET);
+            sceIoRead(fd, title, 17);
+            title[17] = 0;
             sceIoClose(fd);
         }
     }
