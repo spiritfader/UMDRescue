@@ -276,7 +276,7 @@ static int umdkiller_thread(SceSize args, void* argp)
         sceKernelDelayThread(50000);
         sceCtrlPeekBufferPositive(&pad, 1);
 
-        if ((pad.Buttons & PSP_CTRL_HOME) == PSP_CTRL_HOME)
+        if ((pad.Buttons & PSP_CTRL_SQUARE) == PSP_CTRL_SQUARE)
             start_dumper();
     }
     return 0;
