@@ -27,6 +27,8 @@ char discid[17] = { 0 };
 char title[17] = { 0 };
 char isopath[30] = { 0 };
 char gtype[3] = { 0 };
+char parsedTitle[17] = { 0 };
+char parsedDiscId[17] = { 0 };
 SceUID threadnumber, bytesread, umdsize, dumppercent, byteswritten, sec = -1;
 SceUID umd, iso, fd, threadlist[66], st_thlist_first[66], st_thnum_first = -1;
 
@@ -99,8 +101,17 @@ static int start_dumper()
     fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777);
     if (fd >= 0) {
         sceIoLseek(fd, 0, SEEK_SET);
-        sceIoRead(fd, discid, 16);
-        discid[16] = 0;
+		int i = 0;
+		int j = 0;
+		for(;i<sizeof(discid); i++) {
+			if(discid[i] == '|' || discid[i] == ':') break;
+			else {
+				parsedDiscId[j] = discid[i];
+				j++;
+			}
+		}
+
+        sceIoRead(fd, parsedDiscId, j-1);
         sceIoClose(fd);
     }
 
@@ -134,8 +145,16 @@ static int start_dumper()
         fd = sceIoOpen("disc0:/UMD_VIDEO/PARAM.SFO", PSP_O_RDONLY, 0777);
         if (fd >= 0) {
             sceIoLseek(fd, 0x74, SEEK_SET);
-            sceIoRead(fd, title, 17);
-            title[17] = 0;
+			int i = 0;
+			int j = 0;
+			for(;i<sizeof(title); i++) {
+				if(title[i] == '|') break;
+				else {
+					parsedTitle[j] = title[i];
+					j++;
+				}
+			}
+            sceIoRead(fd, parsedTitle, j);
             sceIoClose(fd);
         }
     }
@@ -147,11 +166,11 @@ static int start_dumper()
         pspDebugScreenSetXY(0, 0);
         printf("%66s", "UMDKillerPRX 2.0");
         pspDebugScreenSetXY(7, 10);
-        printf("Title: %s", title);
+        printf("Title: %s", parsedTitle);
         pspDebugScreenSetXY(7, 12);
         printf("Type: %s", (gtype[0] == 'G') ? "Game" : "Video");
         pspDebugScreenSetXY(7, 14);
-        printf("Disc ID: %s", discid);
+        printf("Disc ID: %s", parsedDiscId);
         pspDebugScreenSetXY(7, 16);
         printf("Sectors: %d", umdsize + 1);
         pspDebugScreenSetXY(7, 18);
@@ -183,17 +202,17 @@ static int start_dumper()
         sprintf(isopath, "ms0:/ISO/%s.iso", discid);
     else {
         int k = 0;
-        for (; k < 11; k++) {
-            if (discid[k] == ' ' || discid[k] == ':')
-                discid[k] = '_';
+        for (; k < sizeof(parsedDiscId)-1; k++) {
+            if (parsedDiscId[k] == ' ' || parsedDiscId[k] == ':')
+                parsedDiscId[k] = '_';
         }
-        sprintf(isopath, "ms0:/ISO/VIDEO/%s.iso", discid);
+        sprintf(isopath, "ms0:/ISO/VIDEO/%s.iso", parsedDiscId);
     }
 
     // open iso fd from isopath for writing
     iso = sceIoOpen(isopath, PSP_O_WRONLY | PSP_O_CREAT | PSP_O_TRUNC, 0777);
 
-    if (iso < 0) // if isopath contains invalid characters or MS:0 is unable to be reached, this will result in MS0 error
+    if (iso < 0) // if isopath contains invalid characters or ms0: is unable to be reached, this will result in ms0: error
         if (error("can't access ms0: (memory stick)"))
             return 0;
 
@@ -207,21 +226,15 @@ static int start_dumper()
 
     byteswritten = 0;
 
-    while (1) {
+    while ((bytesread = sceIoRead(umd, umdreadbuffer, 512))>0) {
+		SceUID written = sceIoWrite(iso, umdreadbuffer, bytesread * 0x800);
         // if memory stick runs out of space, quit
-        if (!(sceIoWrite(iso, umdreadbuffer, 512))) {
+		if(written<0){
             sceIoClose(iso);
             sceIoRemove(isopath);
             if (error("Not enough free space ..."))
                 return 0;
-        }
-        // if UMD disc throws read errors, quit
-        if (!(bytesread = sceIoRead(umd, umdreadbuffer, 512))) {
-            sceIoClose(iso);
-            sceIoRemove(isopath);
-            if (error("UMD read error!"))
-                return 0;
-        }
+		}
         // Print status of current dump
         byteswritten += bytesread;
         dumppercent = (byteswritten * 100) / umdsize;
@@ -233,7 +246,6 @@ static int start_dumper()
         printf("Writing Sectors: %d/%d - %d%% ", byteswritten, umdsize, dumppercent);
         pspDebugScreenSetXY(16, 17);
         printf("Writing Bytes: %d/%d - %d%% ", byteswritten * 2048, umdsize * 2048, dumppercent);
-		if(bytesread < 0) break;
     }
 
     sceIoClose(iso);
