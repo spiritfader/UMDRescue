@@ -16,7 +16,6 @@
 SceCtrlData pad;
 int leave = 0;
 
-
 extern void *oe_malloc(size_t size);
 extern void oe_free(void*);
 extern int oe_mallocinit(void);
@@ -51,7 +50,6 @@ void threadschanger(int stat, SceUID threadlist[], int threadnumber)
       }
     }
 
-
     sceKernelReferThreadStatus(threadlist[i], &status);
     if(!no_target) (*request_stat_func )( threadlist[i]);
   }
@@ -71,7 +69,7 @@ int umdkiller_thread(SceSize args, void *argp){
 }
 
 int start_dumper() {
-  while (!leave) {
+  while (!leave){
       pspDebugScreenInit();                       // pspDebugScreenSetXY(X,Y) has a max of '68x34' character units (1 character = 8 pixels)
 	    pspDebugScreenSetBackColor(RGB(0,0,0));     // set background color
       pspDebugScreenSetTextColor(RGB(255,0,255)); // set text color
@@ -81,163 +79,75 @@ int start_dumper() {
 
       // allocate 1MB to umdreadbuffer for read buffer - 512 (sectors) * 2048 (bytes per 1 sector) = 1048576 (1024KB, 1MB) bytes necessary to hold 512 sectors
       oe_mallocinit(); 
-
-
-	    if(sceUmdCheckMedium()==0){ // if UMD disc isn't present, quit
-      	pspDebugScreenClear(); // clear screen
-        int count = 11;
-        while (count > 0) {
-          pspDebugScreenSetXY(0, 0); printf("%66s", "UMDKillerPRX 2.0");
-          pspDebugScreenSetXY(7, 12); printf("Error: UMD disc not present");
-          pspDebugScreenSetXY(7, 14); printf("Exiting in %d seconds...",count); count = count - 1;
-          sceKernelDelayThread(1000*1000);
-        }
-        pspDebugScreenSetXY(0, 0); printf("%66s", "UMDKillerPRX 2.0");
-        pspDebugScreenSetXY(7, 12); printf("Error: UMD disc not present");
-        pspDebugScreenSetXY(7, 14); printf("Exiting in %d seconds...",count);
-        threadschanger(1, threadlist, threadnumber);
-        return 0;
-      }
-
-      sceUmdActivate(1, "disc0:"); 
-      sceUmdWaitDriveStat(PSP_UMD_READY);
-
-        // read until offset 00000010 into discid variable from "disc0:/UMD_DATA.BIN"
-	    fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777);
-	    if(fd >= 0){
-	    	sceIoLseek(fd, 0, SEEK_SET);
-	    	sceIoRead(fd, discid, 10);
-	    	discid[10]=0;
-       	sceIoClose(fd);
-      }
-
-        // read size of UMD disc to umdsize
-      fd = sceIoOpen("umd0:", PSP_O_RDONLY, 0777);
-	    if(fd >= 0){
-	    	umdsize=sceIoLseek(fd,0,SEEK_END);
-       	sceIoClose(fd);
-      }
-
-        // read offset 00000021 into gtype from "disc0:/UMD_DATA.BIN", determines whether or not the disc is a [G]ame or [V]ideo
-      fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777); 
-	    if(fd >= 0){
-	    	sceIoLseek(fd, 0x21, SEEK_SET); 
-	    	sceIoRead(fd, gtype, 3);
-	    	sceIoClose(fd);
- 	    }
-
-        // Fix this, determines content name from gtype variable and "PARAM.SFO" located in "/PSP_GAME" or "/UMD_VIDEO"
-	    if(gtype[0]=='G'){ 
-      	fd = sceIoOpen("disc0:/PSP_GAME/PARAM.SFO", PSP_O_RDONLY, 0777);
-	    	if(fd >= 0) {
-	    		sceIoLseek(fd, 0x158, SEEK_SET);
-	    		sceIoRead(fd, title, 16);
-	    		title[16]=0;
-      		sceIoClose(fd);
-	    	}
-      }
-
-      else if(gtype[0]=='V'){
-      	fd = sceIoOpen("disc0:/UMD_VIDEO/PARAM.SFO", PSP_O_RDONLY, 0777);
-	    	if(fd >= 0) {
-	    		sceIoLseek(fd, 0x50, SEEK_SET);
-
-
-	    if(sceUmdCheckMedium()==0){ // if UMD disc isn't present, quit
-      	pspDebugScreenClear(); // clear screen
-        int count = 11;
-        while (count > 0) {
-          pspDebugScreenSetXY(0, 0); printf("%66s", "UMDKillerPRX 2.0");
-          pspDebugScreenSetXY(7, 12); printf("Error: UMD disc not present");
-          pspDebugScreenSetXY(7, 14); printf("Exiting in %d seconds...",count); count = count - 1;
-          sceKernelDelayThread(1000*1000);
-        }
-        pspDebugScreenSetXY(0, 0); printf("%66s", "UMDKillerPRX 2.0");
-        pspDebugScreenSetXY(7, 12); printf("Error: UMD disc not present");
-        pspDebugScreenSetXY(7, 14); printf("Exiting in %d seconds...",count);
-        threadschanger(1, threadlist, threadnumber);
-        return 0;
-      }
-
-      sceUmdActivate(1, "disc0:"); 
-      sceUmdWaitDriveStat(PSP_UMD_READY);
-
-        // read until offset 00000010 into discid variable from "disc0:/UMD_DATA.BIN"
-	    fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777);
-	    if(fd >= 0){
-	    	sceIoLseek(fd, 0, SEEK_SET);
-	    	sceIoRead(fd, discid, 10);
-	    	discid[10]=0;
-       	sceIoClose(fd);
-      }
-
-        // read size of UMD disc to umdsize
-      fd = sceIoOpen("umd0:", PSP_O_RDONLY, 0777);
-	    if(fd >= 0){
-	    	umdsize=sceIoLseek(fd,0,SEEK_END);
-       	sceIoClose(fd);
-      }
-
-        // read offset 00000021 into gtype from "disc0:/UMD_DATA.BIN", determines whether or not the disc is a [G]ame or [V]ideo
-      fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777); 
-	    if(fd >= 0){
-	    	sceIoLseek(fd, 0x21, SEEK_SET); 
-	    	sceIoRead(fd, gtype, 3);
-	    	sceIoClose(fd);
- 	    }
-
-        // Fix this, determines content name from gtype variable and "PARAM.SFO" located in "/PSP_GAME" or "/UMD_VIDEO"
-	    if(gtype[0]=='G'){ 
-      	fd = sceIoOpen("disc0:/PSP_GAME/PARAM.SFO", PSP_O_RDONLY, 0777);
-	    	if(fd >= 0) {
-	    		sceIoLseek(fd, 0x158, SEEK_SET);
-	    		sceIoRead(fd, title, 16);
-	    		title[16]=0;
-      		sceIoClose(fd);
-	    	}
-      }
-
-      pspDebugScreenClear(); // blank screen
-
-	    do { // While loop to present disc information until Start is pressed (exiting) or X is pressed (exiting loop and following code logic)
-        sceCtrlReadBufferPositive(&pad, 1); // poll for input throughout entire function
-        pspDebugScreenSetXY(0, 0); printf("%66s", "UMDKillerPRX 2.0");     
-	      pspDebugScreenSetXY(7, 10); printf("Title: %s",title);
-	      pspDebugScreenSetXY(7, 12); printf("Type: %s",gtype);
-       	pspDebugScreenSetXY(7, 14); printf("Disc ID: %s",discid);
-       	pspDebugScreenSetXY(7, 16); printf("Sectors: %d",umdsize+1);
-       	pspDebugScreenSetXY(7, 18); printf("Size (bytes): %d",((umdsize+1)*2048));
-	    	pspDebugScreenSetXY(0, 32); printf("%66s", "PRESS X TO DUMP OR PRESS TRIANGLE TO EXIT");
-        sceDisplayWaitVblankStart(); // Wait for vertical blank start
-        if (pad.Buttons & PSP_CTRL_TRIANGLE){ // if triangle is pressed, quit program
-        	threadschanger(1, threadlist, threadnumber);
-          return 0;
-       	}
-      } while(!(pad.Buttons & PSP_CTRL_CROSS)); // if X is pressed, start dump logic
-
-      umd = sceIoOpen("umd0:", PSP_O_RDONLY, 0777); // Open UMD disc in read-only mode and throw error if unsuccessful
-
-      if (umd<0){
-        pspDebugScreenClear(); // clear screen
-        int count = 11;
-        while (count > 0) {
+/*	    if(!(umdreadbuffer=(char*)oe_malloc(512*2048))){ 
+	    	  pspDebugScreenClear(); // clear screen
+          int count = 11;
+          while (count > 0) {
+            pspDebugScreenSetXY(0, 0); printf("%66s", "UMDKillerPRX 2.0");
+            pspDebugScreenSetXY(7, 12); printf("Error: Can't allocate memory");
+            pspDebugScreenSetXY(7, 14); printf("Exiting in %d seconds...",count); count = count - 1;
+            sceKernelDelayThread(1000*1000);
+          }
           pspDebugScreenSetXY(0, 0); printf("%66s", "UMDKillerPRX 2.0");  
-          pspDebugScreenSetXY(7, 12); printf("Error: can't open umd0:");
+          pspDebugScreenSetXY(7, 12); printf("UMD disc not present");
+          pspDebugScreenSetXY(7, 14); printf("Exiting in %d seconds...",count);
+          threadschanger(1, threadlist, threadnumber);
+          return 0;
+      	}
+*/
+	    if(sceUmdCheckMedium()==0){ // if UMD disc isn't present, quit
+      	pspDebugScreenClear(); // clear screen
+        int count = 11;
+        while (count > 0) {
+          pspDebugScreenSetXY(0, 0); printf("%66s", "UMDKillerPRX 2.0");
+          pspDebugScreenSetXY(7, 12); printf("Error: UMD disc not present");
           pspDebugScreenSetXY(7, 14); printf("Exiting in %d seconds...",count); count = count - 1;
           sceKernelDelayThread(1000*1000);
         }
         pspDebugScreenSetXY(0, 0); printf("%66s", "UMDKillerPRX 2.0");
-        pspDebugScreenSetXY(7, 12); printf("Error: Error: can't open umd0:");
+        pspDebugScreenSetXY(7, 12); printf("Error: UMD disc not present");
         pspDebugScreenSetXY(7, 14); printf("Exiting in %d seconds...",count);
         threadschanger(1, threadlist, threadnumber);
         return 0;
       }
 
-        // declare and create "ms0:/ISO/" directory if it doesn't already exist
-      dir = sceIoDopen("ms0:/ISO/");
- 	    if (dir < 0){ 
- 	    	sceIoMkdir(	"ms0:/ISO",0777);	
- 	    } 
+      sceUmdActivate(1, "disc0:"); 
+      sceUmdWaitDriveStat(PSP_UMD_READY);
+
+        // read until offset 00000010 into discid variable from "disc0:/UMD_DATA.BIN"
+	    fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777);
+	    if(fd >= 0){
+	    	sceIoLseek(fd, 0, SEEK_SET);
+	    	sceIoRead(fd, discid, 10);
+	    	discid[10]=0;
+       	sceIoClose(fd);
+      }
+
+        // read size of UMD disc to umdsize
+      fd = sceIoOpen("umd0:", PSP_O_RDONLY, 0777);
+	    if(fd >= 0){
+	    	umdsize=sceIoLseek(fd,0,SEEK_END);
+       	sceIoClose(fd);
+      }
+
+        // read offset 00000021 into gtype from "disc0:/UMD_DATA.BIN", determines whether or not the disc is a [G]ame or [V]ideo
+      fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777); 
+	    if(fd >= 0){
+	    	sceIoLseek(fd, 0x21, SEEK_SET); 
+	    	sceIoRead(fd, gtype, 3);
+	    	sceIoClose(fd);
+ 	    }
+
+        // Fix this, determines content name from gtype variable and "PARAM.SFO" located in "/PSP_GAME" or "/UMD_VIDEO"
+	    if(gtype[0]=='G'){ 
+      	fd = sceIoOpen("disc0:/PSP_GAME/PARAM.SFO", PSP_O_RDONLY, 0777);
+	    	if(fd >= 0) {
+	    		sceIoLseek(fd, 0x158, SEEK_SET);
+	    		sceIoRead(fd, title, 16);
+	    		title[16]=0;
+      		sceIoClose(fd);
+	    	}
+      }
 
       else if(gtype[0]=='V'){
       	fd = sceIoOpen("disc0:/UMD_VIDEO/PARAM.SFO", PSP_O_RDONLY, 0777);
@@ -329,7 +239,6 @@ int start_dumper() {
 
       pspDebugScreenClear(); // blank screen
 
-
       sceKernelDelayThread(5000000);
 
       umdreadbuffer = (char*)oe_malloc(512*2048);
@@ -392,7 +301,6 @@ int start_dumper() {
       sceIoDclose(dir);
       sceIoDclose(vdir);
       sceIoClose(umd);
-
       oe_free(umdreadbuffer);
 
       pspDebugScreenClear();  // blank screen
@@ -411,10 +319,7 @@ int start_dumper() {
       threadschanger(1, threadlist, threadnumber);
       return 0;
     }  
-
-	  }
-  	return 0;
-  }
+  return 0;
 }
 
 int module_start(SceSize args, void *argp)
@@ -429,6 +334,5 @@ int module_start(SceSize args, void *argp)
 
 int module_stop(SceSize args, void *argp)
 {
-  return 0;
+  return(0);
 }
-    
