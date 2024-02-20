@@ -1,6 +1,6 @@
 TARGET = UMDKiller
 
-OBJS = stubkk.o oe_malloc.o main.o
+OBJS = oe_malloc.o main.o
 
 BUILD_PRX = 1
 
