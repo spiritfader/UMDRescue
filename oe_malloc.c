@@ -28,7 +28,7 @@ int oe_mallocinit(void)
 }
 
 void* oe_malloc(size_t size){
-    SceUID uid = sceKernelAllocPartitionMemory(PSP_MEMORY_PARTITION_KERNEL, "", PSP_SMEM_High, size+sizeof(SceUID), NULL);
+    SceUID uid = sceKernelAllocPartitionMemory(PSP_MEMORY_PARTITION_USER, "", PSP_SMEM_High, size+sizeof(SceUID), NULL);
     SceUID* ptr = sceKernelGetBlockHeadAddr(uid);
     ptr[0] = uid;
     return &(ptr[1]);
