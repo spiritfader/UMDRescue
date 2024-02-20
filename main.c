@@ -71,7 +71,7 @@ int umdkiller_thread(SceSize args, void *argp){
 }
 
 int start_dumper() {
-  while (!leave){
+  while (!leave) {
       pspDebugScreenInit();                       // pspDebugScreenSetXY(X,Y) has a max of '68x34' character units (1 character = 8 pixels)
 	    pspDebugScreenSetBackColor(RGB(0,0,0));     // set background color
       pspDebugScreenSetTextColor(RGB(255,0,255)); // set text color
@@ -412,7 +412,9 @@ int start_dumper() {
       return 0;
     }  
 
-  return 0;
+	  }
+  	return 0;
+  }
 }
 
 int module_start(SceSize args, void *argp)
