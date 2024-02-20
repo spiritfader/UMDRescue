@@ -233,6 +233,7 @@ static int start_dumper()
         printf("Writing Sectors: %d/%d - %d%% ", byteswritten, umdsize, dumppercent);
         pspDebugScreenSetXY(16, 17);
         printf("Writing Bytes: %d/%d - %d%% ", byteswritten * 2048, umdsize * 2048, dumppercent);
+		if(bytesread < 0) break;
     }
 
     sceIoClose(iso);
