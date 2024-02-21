@@ -24,12 +24,12 @@ PSP_MAIN_THREAD_ATTR(0);
 
 char* umdreadbuffer = NULL;
 char discid[16] = { 0 };
-char title[17] = { 0 };
-char isopath[30] = { 0 };
+char title[18] = { 0 };
+char isopath[36] = { 0 };
 char gtype[3] = { 0 };
 char parsedTitle[17] = { 0 };
 char parsedDiscId[17] = { 0 };
-SceUID threadnumber, bytesread, umdsize, dumppercent, byteswritten, sec = -1;
+SceUID threadnumber, sectorsread, umdsize, isosize, dumppercent, sectorswritten, sec = -1;
 SceUID umd, iso, fd, threadlist[66], st_thlist_first[66], st_thnum_first = -1;
 
 void threadschanger(int stat, SceUID threadlist[], int threadnumber)
@@ -222,16 +222,12 @@ static int start_dumper()
 
     pspDebugScreenClear(); // blank screen
 
-    sceKernelDelayThread(5000000);
-
     umdreadbuffer = (char*)oe_malloc(512 * 2048);
 
-    sceKernelDelayThread(500000);
+    sectorswritten = 0;
 
-    byteswritten = 0;
-
-    while ((bytesread = sceIoRead(umd, umdreadbuffer, 512))>0) {
-		SceUID written = sceIoWrite(iso, umdreadbuffer, bytesread * 0x800);
+    while ((sectorsread = sceIoRead(umd, umdreadbuffer, 512))>0) {
+		SceUID written = sceIoWrite(iso, umdreadbuffer, sectorsread * 0x800);
         // if memory stick runs out of space, quit
 		if(written<0){
             sceIoClose(iso);
@@ -240,31 +236,43 @@ static int start_dumper()
                 return 0;
 		}
         // Print status of current dump
-        byteswritten += bytesread;
-        dumppercent = (byteswritten * 100) / umdsize;
+        sectorswritten += sectorsread;
+        dumppercent = (sectorswritten * 100) / umdsize;
         pspDebugScreenSetXY(0, 0);
         printf("%66s", "UMDKillerPRX 2.0");
         pspDebugScreenSetXY(15, 11);
         printf("Writing to %s", isopath);
         pspDebugScreenSetXY(16, 15);
-        printf("Writing Sectors: %d/%d - %d%% ", byteswritten, umdsize, dumppercent);
+        printf("Writing Sectors: %d/%d - %d%% ", sectorswritten, umdsize, dumppercent);
         pspDebugScreenSetXY(16, 17);
-        printf("Writing Bytes: %d/%d - %d%% ", byteswritten * 2048, umdsize * 2048, dumppercent);
+        printf("Writing Bytes: %d/%d - %d%% ", sectorswritten * 2048, umdsize * 2048, dumppercent);
     }
+
+    fd = sceIoOpen(isopath, PSP_O_RDONLY, 0777);
+    if (fd >= 0) {
+        isosize = sceIoLseek(fd, 0, SEEK_END);
+        sceIoClose(fd);
+    }    
 
     sceIoClose(iso);
     sceIoClose(umd);
-    oe_free(umdreadbuffer);
-
+    oe_free(umdreadbuffer);    
     pspDebugScreenClear(); // blank screen
 
-    // Automatically exit after successfull dump
-    int count = 21;
+    // Automatically exit after successful or failed dump and delete ISO if failed
+    int count = 10;
     while (count > 0) {
         pspDebugScreenSetXY(0, 0);
         printf("%66s", "UMDKillerPRX 2.0");
-        pspDebugScreenSetXY(7, 12);
-        printf("Successfully wrote to %s", isopath);
+        if ((isosize) == ((umdsize+1)*2048)) {
+            pspDebugScreenSetXY(7, 12);
+            printf("Successfully wrote UMD:0 to %s", isopath);
+        }
+        else {
+            pspDebugScreenSetXY(7, 12);
+            printf("Failure: ISO size doesn't match UMD size");
+            sceIoRemove(isopath);
+        }
         pspDebugScreenSetXY(7, 14);
         printf("Exiting in %d seconds...", count);
         count -= 1;
