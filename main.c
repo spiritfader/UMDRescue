@@ -29,7 +29,7 @@ char isopath[36] = { 0 };
 char gtype[3] = { 0 };
 char parsedTitle[17] = { 0 };
 char parsedDiscId[17] = { 0 };
-SceUID threadnumber, sectorsread, umdsize, isosize, dumppercent, sectorswritten, sec = -1;
+SceUID threadnumber, lbaread, umdlastlba, isosize, dumppercent, lbawritten, sec = -1;
 SceUID umd, iso, fd, threadlist[66], st_thlist_first[66], st_thnum_first = -1;
 
 void threadschanger(int stat, SceUID threadlist[], int threadnumber)
@@ -127,10 +127,10 @@ static int start_dumper()
     }
 	sceIoClose(fd);
 
-    // read size of UMD disc to umdsize
+    // read size (last lba) of UMD disc to umdlastlba
     fd = sceIoOpen("umd0:", PSP_O_RDONLY, 0777);
     if (fd >= 0) {
-        umdsize = sceIoLseek(fd, 0, SEEK_END);
+        umdlastlba = sceIoLseek(fd, 0, SEEK_END);
         sceIoClose(fd);
     }
 
@@ -168,21 +168,27 @@ static int start_dumper()
     do { // While loop to present disc information until Start is pressed (exiting) or X is pressed (exiting loop and following code logic)
         sceCtrlReadBufferPositive(&pad, 1); // poll for input throughout entire function
         pspDebugScreenSetXY(0, 0);
-        printf("%66s", "UMDRescue");
-        pspDebugScreenSetXY(7, 10);
+        printf("%68s", "UMDRescue");
+        pspDebugScreenSetXY(7, 6);
         printf("Title: %s", (gtype[0] == 'G') ? title : parsedTitle);
-        pspDebugScreenSetXY(7, 12);
+        pspDebugScreenSetXY(7, 8);
         printf("Type: %s", (gtype[0] == 'G') ? "Game" : "Video");
-        pspDebugScreenSetXY(7, 14);
+        pspDebugScreenSetXY(7, 10);
         printf("Disc ID: %s", (gtype[0] == 'G') ? discid : parsedDiscId);
-        pspDebugScreenSetXY(7, 16);
-        printf("Sectors: %d", umdsize + 1);
-        pspDebugScreenSetXY(7, 18);
-        printf("Size (bytes): %d", ((umdsize + 1) * 2048));
+        pspDebugScreenSetXY(7, 12);
+        printf("Sectors (Total LBA): %d", umdlastlba + 1);
+        pspDebugScreenSetXY(7, 14);
+        printf("Size (bytes): %d", ((umdlastlba + 1) * 2048));
+        pspDebugScreenSetXY(0, 31);
+        printf("%68s", "(X)           (O)        (TRIANGLE)");
         pspDebugScreenSetXY(0, 32);
-        printf("%66s", "PRESS X TO DUMP OR PRESS TRIANGLE TO EXIT");
+        printf("%68s", "DUMP          LOGS         Exit");
         sceDisplayWaitVblankStart(); // Wait for vertical blank start
         if (pad.Buttons & PSP_CTRL_TRIANGLE) { // if triangle is pressed, quit program
+            threadschanger(1, threadlist, threadnumber);
+            return 0;
+        }
+        if (pad.Buttons & PSP_CTRL_CIRCLE) { // if CIRCLE is pressed, dump log        
             threadschanger(1, threadlist, threadnumber);
             return 0;
         }
@@ -224,10 +230,10 @@ static int start_dumper()
 
     umdreadbuffer = (char*)oe_malloc(512 * 2048);
 
-    sectorswritten = 0;
+    lbawritten = 0;
 
-    while ((sectorsread = sceIoRead(umd, umdreadbuffer, 512))>0) {
-		SceUID written = sceIoWrite(iso, umdreadbuffer, sectorsread * 0x800);
+    while ((lbaread = sceIoRead(umd, umdreadbuffer, 512))>0) {
+		SceUID written = sceIoWrite(iso, umdreadbuffer, lbaread * 0x800);
         // if memory stick runs out of space, quit
 		if(written<0){
             sceIoClose(iso);
@@ -236,16 +242,16 @@ static int start_dumper()
                 return 0;
 		}
         // Print status of current dump
-        sectorswritten += sectorsread;
-        dumppercent = (sectorswritten * 100) / umdsize;
+        lbawritten += lbaread;
+        dumppercent = (lbawritten * 100) / umdlastlba;
         pspDebugScreenSetXY(0, 0);
         printf("%66s", "UMDRescue");
-        pspDebugScreenSetXY(15, 11);
+        pspDebugScreenSetXY(0, 11);
         printf("Writing to %s", isopath);
-        pspDebugScreenSetXY(16, 15);
-        printf("Writing Sectors: %d/%d - %d%% ", sectorswritten, umdsize, dumppercent);
-        pspDebugScreenSetXY(16, 17);
-        printf("Writing Bytes: %d/%d - %d%% ", sectorswritten * 2048, umdsize * 2048, dumppercent);
+        pspDebugScreenSetXY(0, 15);
+        printf("Writing Sectors: %d/%d - %d%% ", lbawritten, umdlastlba, dumppercent);
+        pspDebugScreenSetXY(0, 17);
+        printf("Writing Bytes: %d/%d - %d%% ", lbawritten * 2048, umdlastlba * 2048, dumppercent);
     }
 
     fd = sceIoOpen(isopath, PSP_O_RDONLY, 0777);
@@ -264,7 +270,7 @@ static int start_dumper()
     while (count > 0) {
         pspDebugScreenSetXY(0, 0);
         printf("%66s", "UMDRescue");
-        if ((isosize) == ((umdsize+1)*2048)) {
+        if ((isosize) == ((umdlastlba+1)*2048)) {
             pspDebugScreenSetXY(7, 12);
             printf("Successfully wrote UMD:0 to %s", isopath);
         }

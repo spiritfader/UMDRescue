@@ -12,7 +12,7 @@ This tool is not to be used for piracy under any circumstances.
 - If you do not already have a `VSH.TXT` file in the `ms0:/seplugins` folder, create it or copy over the provided `VSH.TXT`.
   - If you do already have a `VSH.TXT` file, add the line `ms0:/seplugins/UMDRescue.prx 1` to the bottom of the file.
 - Power on the PSP **WITH** the memory stick already inserted, then insert the UMD you wish to backup. 
-- Wait until it loads, then press the `SELECT` button to launch UMDRescue.
+- Wait until it loads, then press the `SQUARE` button to launch UMDRescue.
 - Press `X` to begin dumping your UMD.
   - Game images will be saved to `ms0:/IS0` 
   - Video images will be saved to `ms0:/ISO/VIDEO`
