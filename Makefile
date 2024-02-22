@@ -1,4 +1,4 @@
-TARGET = UMDKiller
+TARGET = UMDRescue
 
 OBJS = oe_malloc.o main.o
 

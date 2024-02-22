@@ -19,7 +19,7 @@ extern void* oe_malloc(size_t size);
 extern void oe_free(void*);
 extern int oe_mallocinit(void);
 
-PSP_MODULE_INFO("UMDKiller", PSP_MODULE_KERNEL, 1, 1);
+PSP_MODULE_INFO("UMDRescue", PSP_MODULE_KERNEL, 1, 1);
 PSP_MAIN_THREAD_ATTR(0);
 
 char* umdreadbuffer = NULL;
@@ -67,7 +67,7 @@ static int error(const char* err)
     pspDebugScreenClear(); // clear screen
     while (count > 0) {
         pspDebugScreenSetXY(0, 0);
-        printf("%66s", "UMDKillerPRX 2.0");
+        printf("%66s", "UMDRescue");
         pspDebugScreenSetXY(7, 12);
         printf("Error: %s", err);
         pspDebugScreenSetXY(7, 14);
@@ -168,7 +168,7 @@ static int start_dumper()
     do { // While loop to present disc information until Start is pressed (exiting) or X is pressed (exiting loop and following code logic)
         sceCtrlReadBufferPositive(&pad, 1); // poll for input throughout entire function
         pspDebugScreenSetXY(0, 0);
-        printf("%66s", "UMDKillerPRX 2.0");
+        printf("%66s", "UMDRescue");
         pspDebugScreenSetXY(7, 10);
         printf("Title: %s", (gtype[0] == 'G') ? title : parsedTitle);
         pspDebugScreenSetXY(7, 12);
@@ -239,7 +239,7 @@ static int start_dumper()
         sectorswritten += sectorsread;
         dumppercent = (sectorswritten * 100) / umdsize;
         pspDebugScreenSetXY(0, 0);
-        printf("%66s", "UMDKillerPRX 2.0");
+        printf("%66s", "UMDRescue");
         pspDebugScreenSetXY(15, 11);
         printf("Writing to %s", isopath);
         pspDebugScreenSetXY(16, 15);
@@ -263,7 +263,7 @@ static int start_dumper()
     int count = 10;
     while (count > 0) {
         pspDebugScreenSetXY(0, 0);
-        printf("%66s", "UMDKillerPRX 2.0");
+        printf("%66s", "UMDRescue");
         if ((isosize) == ((umdsize+1)*2048)) {
             pspDebugScreenSetXY(7, 12);
             printf("Successfully wrote UMD:0 to %s", isopath);
@@ -282,7 +282,7 @@ static int start_dumper()
     return 0;
 }
 
-static int umdkiller_thread(SceSize args, void* argp)
+static int umdrescue_thread(SceSize args, void* argp)
 {
     while (1) {
         sceKernelDelayThread(50000);
@@ -297,7 +297,7 @@ static int umdkiller_thread(SceSize args, void* argp)
 int module_start(SceSize args, void* argp)
 {
     int thid;
-    thid = sceKernelCreateThread("umdkiller_thread", umdkiller_thread, 30, 0x10000, 0, NULL);
+    thid = sceKernelCreateThread("umdrescue_thread", umdrescue_thread, 30, 0x10000, 0, NULL);
     if (thid >= 0) {
         sceKernelStartThread(thid, args, argp);
     }
