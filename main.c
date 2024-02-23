@@ -168,7 +168,7 @@ static int start_dumper()
     do { // While loop to present disc information until Start is pressed (exiting) or X is pressed (exiting loop and following code logic)
         sceCtrlReadBufferPositive(&pad, 1); // poll for input throughout entire function
         pspDebugScreenSetXY(0, 0);
-        printf("%68s", "UMDRescue");
+        printf("%66s", "UMDRescue");
         pspDebugScreenSetXY(7, 6);
         printf("Title: %s", (gtype[0] == 'G') ? title : parsedTitle);
         pspDebugScreenSetXY(7, 8);
@@ -179,19 +179,19 @@ static int start_dumper()
         printf("Sectors (Total LBA): %d", umdlastlba + 1);
         pspDebugScreenSetXY(7, 14);
         printf("Size (bytes): %d", ((umdlastlba + 1) * 2048));
-        pspDebugScreenSetXY(0, 31);
-        printf("%68s", "(X)           (O)        (TRIANGLE)");
+        pspDebugScreenSetXY(0, 30);
+        printf("%68s", "(X)           (TRIANGLE)        (Circle)");
         pspDebugScreenSetXY(0, 32);
-        printf("%68s", "DUMP          LOGS         Exit");
+        printf("%68s", "DUMP            LOGS              Exit  ");
         sceDisplayWaitVblankStart(); // Wait for vertical blank start
         if (pad.Buttons & PSP_CTRL_TRIANGLE) { // if triangle is pressed, quit program
             threadschanger(1, threadlist, threadnumber);
             return 0;
         }
-        if (pad.Buttons & PSP_CTRL_CIRCLE) { // if CIRCLE is pressed, dump log        
-            threadschanger(1, threadlist, threadnumber);
-            return 0;
-        }
+        //if (pad.Buttons & PSP_CTRL_CIRCLE) { // if CIRCLE is pressed, dump log        
+        //    threadschanger(1, threadlist, threadnumber);
+        //    return 0;
+        //}
     } while (!(pad.Buttons & PSP_CTRL_CROSS)); // if X is pressed, start dump logic
 
     umd = sceIoOpen("umd0:", PSP_O_RDONLY, 0777); // Open UMD disc in read-only mode and throw error if unsuccessful
@@ -232,8 +232,9 @@ static int start_dumper()
 
     lbawritten = 0;
 
-    while ((lbaread = sceIoRead(umd, umdreadbuffer, 512))>0) {
+    while ((lbaread = sceIoRead(umd, umdreadbuffer, 512))>0 && !(pad.Buttons & PSP_CTRL_CIRCLE)) {
 		SceUID written = sceIoWrite(iso, umdreadbuffer, lbaread * 0x800);
+        sceCtrlReadBufferPositive(&pad, 1);
         // if memory stick runs out of space, quit
 		if(written<0){
             sceIoClose(iso);
@@ -246,12 +247,16 @@ static int start_dumper()
         dumppercent = (lbawritten * 100) / umdlastlba;
         pspDebugScreenSetXY(0, 0);
         printf("%66s", "UMDRescue");
-        pspDebugScreenSetXY(0, 11);
+        pspDebugScreenSetXY(0, 13);
         printf("Writing to %s", isopath);
         pspDebugScreenSetXY(0, 15);
         printf("Writing Sectors: %d/%d - %d%% ", lbawritten, umdlastlba, dumppercent);
         pspDebugScreenSetXY(0, 17);
         printf("Writing Bytes: %d/%d - %d%% ", lbawritten * 2048, umdlastlba * 2048, dumppercent);
+        pspDebugScreenSetXY(0, 30);
+        printf("%68s", "Hold (Circle) ");
+        pspDebugScreenSetXY(0, 32);
+        printf("%68s", "Cancel Dump");
     }
 
     fd = sceIoOpen(isopath, PSP_O_RDONLY, 0777);
