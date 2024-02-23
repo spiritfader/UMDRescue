@@ -13,6 +13,7 @@
 
 #define printf pspDebugScreenKprintf
 #define RGB(r, g, b) ((r) | ((g) << 8) | ((b) << 16))
+#define SECTOR_SIZE 0x800
 SceCtrlData pad;
 
 extern void* oe_malloc(size_t size);
@@ -31,6 +32,7 @@ char parsedTitle[17] = { 0 };
 char parsedDiscId[17] = { 0 };
 SceUID threadnumber, lbaread, umdlastlba, isosize, dumppercent, lbawritten, sec = -1;
 SceUID umd, iso, fd, threadlist[66], st_thlist_first[66], st_thnum_first = -1;
+static int color = 0;
 
 void threadschanger(int stat, SceUID threadlist[], int threadnumber)
 {
@@ -88,7 +90,7 @@ static int start_dumper()
     threadschanger(0, threadlist, threadnumber);
     pspDebugScreenClear(); // clear screen
 
-    // allocate 1MB to umdreadbuffer for read buffer - 512 (sectors) * 2048 (bytes per 1 sector) = 1048576 (1024KB, 1MB) bytes necessary to hold 512 sectors
+    // allocate 1MB to umdreadbuffer for read buffer - 512 (sectors) * SECTOR_SIZE (bytes per 1 sector) = 1048576 (1024KB, 1MB) bytes necessary to hold 512 sectors
     oe_mallocinit();
     if (sceUmdCheckMedium() == 0) // if UMD disc isn't present, quit
         if (error("UMD Disc not present"))
@@ -178,7 +180,7 @@ static int start_dumper()
         pspDebugScreenSetXY(7, 12);
         printf("Sectors (Total LBA): %d", umdlastlba + 1);
         pspDebugScreenSetXY(7, 14);
-        printf("Size (bytes): %d", ((umdlastlba + 1) * 2048));
+        printf("Size (bytes): %d", ((umdlastlba + 1) * SECTOR_SIZE));
         pspDebugScreenSetXY(0, 31);
         printf("%68s", "(X)           (O)        (TRIANGLE)");
         pspDebugScreenSetXY(0, 32);
@@ -228,12 +230,47 @@ static int start_dumper()
 
     pspDebugScreenClear(); // blank screen
 
-    umdreadbuffer = (char*)oe_malloc(512 * 2048);
+    umdreadbuffer = (char*)oe_malloc(512 * SECTOR_SIZE);
 
     lbawritten = 0;
 
+	if(pad.Buttons & (PSP_CTRL_LEFT | PSP_CTRL_RIGHT | PSP_CTRL_DOWN | PSP_CTRL_UP)) {
+		while(1) {
+			sceIoClose(iso);
+			sceIoClose(umd);
+			oe_free(umdreadbuffer); 
+
+			// Print status of current dump
+			lbawritten = 512;
+			dumppercent = (lbawritten * 100) / umdlastlba;
+			pspDebugScreenSetTextColor(RGB(255,0,0));
+			pspDebugScreenSetXY(0, 0);
+			printf("%5s", "DEBUG");
+			printf("%63s", "UMDRescue");
+			pspDebugScreenSetXY(0, 11);
+			printf("Writing to %s", isopath);
+			pspDebugScreenSetXY(0, 15);
+			printf("Writing Sectors: %d/%d - %d%% ", lbawritten, umdlastlba, dumppercent);
+			pspDebugScreenSetXY(0, 17);
+			printf("Writing Bytes: %d/%d - %d%% ", lbawritten * SECTOR_SIZE, umdlastlba * SECTOR_SIZE, dumppercent);
+			pspDebugScreenSetXY(0, 19);
+			printf("Press Triangle to close ...");
+
+			
+        	sceCtrlPeekBufferPositive(&pad, 1);
+			if(pad.Buttons & PSP_CTRL_TRIANGLE) {
+    			threadschanger(1, threadlist, threadnumber);
+				return 0;
+			}
+
+		}
+
+
+	}
+
+
     while ((lbaread = sceIoRead(umd, umdreadbuffer, 512))>0) {
-		SceUID written = sceIoWrite(iso, umdreadbuffer, lbaread * 0x800);
+		SceUID written = sceIoWrite(iso, umdreadbuffer, lbaread * SECTOR_SIZE);
         // if memory stick runs out of space, quit
 		if(written<0){
             sceIoClose(iso);
@@ -251,7 +288,25 @@ static int start_dumper()
         pspDebugScreenSetXY(0, 15);
         printf("Writing Sectors: %d/%d - %d%% ", lbawritten, umdlastlba, dumppercent);
         pspDebugScreenSetXY(0, 17);
-        printf("Writing Bytes: %d/%d - %d%% ", lbawritten * 2048, umdlastlba * 2048, dumppercent);
+        printf("Writing Bytes: %d/%d - %d%% ", lbawritten * SECTOR_SIZE, umdlastlba * SECTOR_SIZE, dumppercent);
+
+
+        sceCtrlPeekBufferPositive(&pad, 1);
+		if((pad.Buttons & PSP_CTRL_LTRIGGER)==PSP_CTRL_LTRIGGER)
+			color++;
+		if((pad.Buttons & PSP_CTRL_RTRIGGER)==PSP_CTRL_RTRIGGER)
+			color--;
+
+		if(color>3) color = 0;
+		if(color<0) color = 3;
+		if(color == 0) 
+    		pspDebugScreenSetTextColor(RGB(255, 0, 255)); // Default (Purple)
+		else if(color==1)
+    		pspDebugScreenSetTextColor(RGB(0, 255, 0)); // (Green) 
+		else if(color==2)
+    		pspDebugScreenSetTextColor(RGB(255, 191, 0)); // (Amber)
+		else if(color==3)
+    		pspDebugScreenSetTextColor(RGB(255, 255, 255)); // (White)
     }
 
     fd = sceIoOpen(isopath, PSP_O_RDONLY, 0777);
@@ -270,7 +325,7 @@ static int start_dumper()
     while (count > 0) {
         pspDebugScreenSetXY(0, 0);
         printf("%66s", "UMDRescue");
-        if ((isosize) == ((umdlastlba+1)*2048)) {
+        if ((isosize) == ((umdlastlba+1)*SECTOR_SIZE)) {
             pspDebugScreenSetXY(7, 12);
             printf("Successfully wrote UMD:0 to %s", isopath);
         }
@@ -302,11 +357,12 @@ static int umdrescue_thread(SceSize args, void* argp)
 
 int module_start(SceSize args, void* argp)
 {
-    int thid;
-    thid = sceKernelCreateThread("umdrescue_thread", umdrescue_thread, 30, 0x10000, 0, NULL);
-    if (thid >= 0) {
-        sceKernelStartThread(thid, args, argp);
-    }
+	int thid;
+	thid = sceKernelCreateThread("umdrescue_thread", umdrescue_thread, 30, 0x10000, 0, NULL);
+	if (thid >= 0) {
+		sceKernelStartThread(thid, args, argp);
+	}
+
     return 0;
 }
 
