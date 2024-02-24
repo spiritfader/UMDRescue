@@ -25,8 +25,8 @@ PSP_MAIN_THREAD_ATTR(0);
 
 char* umdreadbuffer = NULL;
 char discid[16] = { 0 };
-char title[18] = { 0 };
-char isopath[36] = { 0 };
+char title[17] = { 0 };
+char isopath[30] = { 0 };
 char gtype[3] = { 0 };
 char parsedTitle[17] = { 0 };
 char parsedDiscId[17] = { 0 };
