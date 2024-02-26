@@ -16,10 +16,7 @@
  */
 
 #include <pspsdk.h>
-#include <pspkernel.h>
-#include <pspsysmem_kernel.h>
-#include <malloc.h>
-#include "imports.h"
+#include <pspsysmem.h>
 
 // Initialize Heap
 int oe_mallocinit(void)
@@ -27,7 +24,7 @@ int oe_mallocinit(void)
    return 0;
 }
 
-void* oe_malloc(size_t size){
+void* oe_malloc(int size){
     SceUID uid = sceKernelAllocPartitionMemory(PSP_MEMORY_PARTITION_USER, "", PSP_SMEM_High, size+sizeof(SceUID), NULL);
     SceUID* ptr = sceKernelGetBlockHeadAddr(uid);
     ptr[0] = uid;
