@@ -34,6 +34,7 @@ SceUID threadnumber, lbaread, umdlastlba, isosize, dumppercent, lbawritten, sec 
 SceUID umd, iso, fd, threadlist[66], st_thlist_first[66], st_thnum_first = -1;
 static int color = 0;
 
+
 void error(char* err)
 {
     int count = 11;
@@ -51,41 +52,6 @@ void error(char* err)
 }
 
 void dump() {
-//int k1 = pspSdkSetK1(0);
-	//int userlevel = pspXploitSetUserLevel(8);
-	// Setup all the functions
-	//pspXploitRepairKernel();
-	//pspXploitScanKernelFunctions(k_tbl);
-
-	//printf("Waiting for UMD ...");
-	//_sceUmdWaitDriveStat(PSP_UMD_READY);
-
-	//pspSdkSetK1(k1);
-	//pspXploitSetUserLevel(userlevel);
-
-	//pspDebugScreenClear(); // clear screen
-	/*if((_sceUmdCheckMedium || _sceUmdActivate || _sceUmdWaitDriveStat) == NULL) {
-		printf("hmmm and import is fucked...");
-		while(1){
-			_sceCtrlReadBufferPositive(&pad, 1);	
-			if(pad.Buttons & PSP_CTRL_CROSS)
-				sceKernelExitGame();
-		}
-	}
-	*/
-
-										
-
-    // allocate 1MB to umdreadbuffer for read buffer - 512 (sectors) * SECTOR_SIZE (bytes per 1 sector) = 1048576 (1024KB, 1MB) bytes necessary to hold 512 sectors
-    //oe_mallocinit();
-    /*if (_sceUmdCheckMedium() == 0) {// if UMD disc isn't present, quit
-        error("UMD Disc not present");
-		pspXploitSetUserLevel(userlevel);
-		pspSdkSetK1(k1);
-		return 1;
-	}
-	*/
-
 	pspDebugScreenClear();
 
 	printf("Parsing UMD data ...");
@@ -168,9 +134,9 @@ void dump() {
         pspDebugScreenSetXY(7, 10);
         printf("Disc ID: %s", (gtype[0] == 'G') ? discid : parsedDiscId);
         pspDebugScreenSetXY(7, 12);
-        printf("Sectors (Total LBA): %d", umdlastlba + 1);
+        printf("Sectors (Total LBA): %d", umdlastlba);
         pspDebugScreenSetXY(7, 14);
-        printf("Size (bytes): %d", ((umdlastlba + 1) * SECTOR_SIZE));
+        printf("Size (bytes): %d", (umdlastlba * SECTOR_SIZE));
         pspDebugScreenSetXY(0, 31);
         printf("%68s", "(X)           (O)        (TRIANGLE)");
         pspDebugScreenSetXY(0, 32);
@@ -259,31 +225,32 @@ void dump() {
     		pspDebugScreenSetTextColor(RGB(255, 255, 255)); // (White)
     }
 
+
+    sceIoClose(iso);
     fd = sceIoOpen(isopath, PSP_O_RDONLY, 0777);
     if (fd >= 0) {
         isosize = sceIoLseek(fd, 0, SEEK_END);
         sceIoClose(fd);
     }    
-    sceIoClose(iso);
     sceIoClose(umd);
     oe_free(umdreadbuffer);    
     pspDebugScreenClear(); // blank screen
     // Automatically exit after successful or failed dump and delete ISO if failed
     SceUID count = 10;
     while (count > 0) {
+		sceCtrlReadBufferPositive(&pad, 1);	
         pspDebugScreenSetXY(0, 0);
         printf("%s", "UMDRescue");
-        /*if ((isosize) == ((umdlastlba+1)*SECTOR_SIZE)) {
+        if ((isosize) == (umdlastlba*SECTOR_SIZE)) {
             pspDebugScreenSetXY(7, 12);
-            printf("Successfully wrote UMD:0 to %s", isopath);
+            printf("Successfully wrote iso to %s", isopath);
         }
         else {
             pspDebugScreenSetXY(7, 12);
-            printf("Did not copy 1:1 removing iso");
-            printf("isosize: %d\nlastlba: %d", isosize, ((umdlastlba+1)*SECTOR_SIZE));
-            sceIoRemove(isopath);
+			printf("WARNING: ISO size doesn't match UMD size\n\n");
+            printf("ISO size: %d\n\nUMD size: %d\n", isosize, (umdlastlba*SECTOR_SIZE));
         }
-		*/
+		
         pspDebugScreenSetXY(7, 14);
         printf("Exiting in %d seconds...", count);
         count -= 1;
@@ -305,8 +272,10 @@ int main(SceUID argc, char* argsv[])
 	}
 												  
 	if(sceUmdCheckMedium() == 0) {
+		pspDebugScreenClear();
 		printf("No UMD Disc inserted please insert one now ...");
    		sceUmdWaitDriveStat(PSP_UMD_PRESENT);
+   		sceUmdWaitDriveStat(PSP_UMD_INITED);
 	}
 
 	pspDebugScreenClear();

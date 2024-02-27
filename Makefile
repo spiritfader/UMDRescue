@@ -20,14 +20,11 @@ LIBDIR = -L$(PSPSDK)/lib -L./lib
 
 #INCDIR = -I./inc
 
-USE_PSPSDK_LIBS = 1
-USE_PSPSDK_LIBC = 1
-
 LIBS = -lpspumd #-lpspexploit -lpsprtc
+
 
 PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
-
 
 all: package
 
@@ -48,3 +45,4 @@ package:
 clean:
 	rm -rf *.o data.psp *.PBP PSP/ *.elf *.prx
 	make -C pencrypt clean
+
