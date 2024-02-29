@@ -1,5 +1,4 @@
 #include <pspsdk.h>
-#include <pspkernel.h>
 #include <pspctrl.h>
 #include <pspdebug.h>
 #include <pspdisplay.h>
@@ -16,12 +15,8 @@ SceCtrlData pad;
 
 extern void* oe_malloc(size_t size);
 extern void oe_free(void*);
-extern int oe_mallocinit(void);
 
-//static KernelFunctions _ktbl; KernelFunctions* k_tbl = &_ktbl;
-
-PSP_MODULE_INFO("UMDRescue", 0, 1, 1);
-PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
+PSP_MODULE_INFO("UMDRescue", PSP_MODULE_USER, 1, 0);
 
 char* umdreadbuffer = NULL;
 char discid[16] = { 0 };
@@ -180,7 +175,7 @@ void dump() {
 	}
 
 
-    umdreadbuffer = (char*)oe_malloc(512 * SECTOR_SIZE);
+	umdreadbuffer = (char*)oe_malloc(512 * SECTOR_SIZE);
 
     lbawritten = 0;
 
@@ -260,7 +255,7 @@ void dump() {
     return 0;
 }
 
-int main(SceUID argc, char* argsv[])
+int main(SceUID argc, char** argsv)
 { 
 	
 	pspDebugScreenInit(); // pspDebugScreenSetXY(X,Y) has a max of '68x34' character units (1 character = 8 pixels)
