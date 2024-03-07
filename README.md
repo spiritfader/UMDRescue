@@ -7,7 +7,7 @@ This tool is not to be used for piracy under any circumstances.
 <br/>
 
 ***Installation*** <br/>
-- Create a `seplugins` folder in the root of your memory stick, denoted as `ms:0` for the rest of these instructions.
+- Create a `seplugins` folder in the root of your memory stick, denoted as `ms0:` for the rest of these instructions.
 - Copy the `UMDRescue.prx` to `ms0:/seplugins`.
 - If you do not already have a `VSH.TXT` file in the `ms0:/seplugins` folder, create it or copy over the provided `VSH.TXT`.
   - If you do already have a `VSH.TXT` file, add the line `ms0:/seplugins/UMDRescue.prx 1` to the bottom of the file.
