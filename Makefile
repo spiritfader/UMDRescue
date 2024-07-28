@@ -24,10 +24,11 @@ VERSION = 01.00
 LIBS = -lpspumd #-lpspexploit -lpsprtc
 
 
-PSPSDK=$(shell psp-config --pspsdk-path)
-include $(PSPSDK)/lib/build.mak
 
 LIBDIR = -L$(PSPSDK)/lib
+
+PSPSDK=$(shell psp-config --pspsdk-path)
+include $(PSPSDK)/lib/build.mak
 
 kxploit:
 	@echo KXploit EBOOT
@@ -45,19 +46,17 @@ standalone:
 	$(CC) $(CFLAGS) $(OBJS) -specs=$(PSPSDK)/lib/prxspecs -Wl,-q,-T$(PSPSDK)/lib/linkfile.prx $(LDFLAGS)  $(LIBS) -o $(TARGET).elf
 	@psp-fixup-imports UMDRescue.elf
 	@psp-prxgen  $(TARGET).elf $(TARGET).prx
-	@make -C pencrypt/ 
-	@pencrypt/pencrypt $(TARGET).prx
-	@pack-pbp EBOOT.PBP PARAM.SFO ICON0.PNG NULL NULL NULL NULL data.psp NULL
+	@pack-pbp EBOOT.PBP PARAM.SFO ICON0.PNG NULL NULL NULL NULL $(TARGET).prx NULL
+	@./psptools/pack_ms_game.py --vanity UMDRescue EBOOT.PBP EBOOT_ENC.PBP && mv EBOOT_ENC.PBP EBOOT.PBP
 	@cp EBOOT.PBP PSP/GAME/$(TARGET)/EBOOT.PBP
-
-
-all: kxploit standalone
 
 ifeq ($(MAKECMDGOALS),standalone)
 BUILD_PRX = 1
 endif
 
+all: kxploit standalone
+
+
+
 clean:
 	rm -rf *.o data.psp *.PBP PSP/ *.elf *.prx
-	make -C pencrypt clean
-
