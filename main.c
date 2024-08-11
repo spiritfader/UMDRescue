@@ -151,6 +151,7 @@ void dump() {
     // declare and create "ms0:/ISO/VIDEO" directory if it doesn't already exist
     SceUID vdir = sceIoDopen("ms0:/ISO/VIDEO");
     if (vdir < 0) {
+        sceIoMkdir("ms0:/ISO", 0777);
         sceIoMkdir("ms0:/ISO/VIDEO", 0777);
     }
     sceIoDclose(vdir);
@@ -173,6 +174,7 @@ void dump() {
         error("can't access ms0: (memory stick)");
 		return 1;
 	}
+	
 
 
 	umdreadbuffer = (char*)oe_malloc(512 * SECTOR_SIZE);
