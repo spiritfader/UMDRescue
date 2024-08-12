@@ -20,10 +20,10 @@ PSP_MODULE_INFO("UMDRescue", PSP_MODULE_USER, 1, 0);
 
 char* umdreadbuffer = NULL;
 char discid[16] = { 0 };
-char title[18] = { 0 };
-char isopath[128] = { 0 };
+char title[128] = { 0 };
+char isopath[30] = { 0 };
 char gtype[3] = { 0 };
-char parsedTitle[17] = { 0 };
+char parsedTitle[128] = { 0 };
 char parsedDiscId[17] = { 0 };
 SceUID threadnumber, lbaread, umdlastlba, isosize, dumppercent, lbawritten, sec = -1;
 SceUID umd, iso, fd, threadlist[66], st_thlist_first[66], st_thnum_first = -1;
@@ -68,14 +68,16 @@ void dump() {
 			strncpy(parsedDiscId, discid, 10);
 		}
 		else {
-			for(;i<sizeof(discid); i++) {
+			strncpy(parsedDiscId, "N/A", 4);
+			/*for(;i<sizeof(discid); i++) {
 				if(discid[i] == '|' || discid[i] == ':') break;
 				else {
 					parsedDiscId[j] = discid[i];
 					j++;
 				}
 			}
-        	sceIoRead(fd, parsedDiscId, j);
+        	sceIoRead(fd, parsedDiscId, j-1);
+		*/
 		}
 
 	sceIoClose(fd);
@@ -104,21 +106,46 @@ void dump() {
         fd = sceIoOpen("disc0:/UMD_VIDEO/PARAM.SFO", PSP_O_RDONLY, 0777);
         if (fd >= 0) {
             sceIoLseek(fd, 0x74, SEEK_SET);
+            sceIoRead(fd, title, sizeof(title));
 			int i = 0;
 			int j = 0;
 			for(;i<sizeof(title); i++) {
-				if(title[i] == '|') break;
+				if(title[i] == '\0') {
+            		sceIoLseek(fd, 0x50, SEEK_SET);
+            		sceIoRead(fd, title, sizeof(title));
+					if(title[i] == '\0') break;
+					else {
+						parsedTitle[j] = title[i];
+						j++;
+					}
+				}
 				else {
 					parsedTitle[j] = title[i];
 					j++;
 				}
 			}
-            sceIoRead(fd, parsedTitle, j);
             sceIoClose(fd);
         }
     }
     pspDebugScreenClear(); // blank screen
     do { // While loop to present disc information until Start is pressed (exiting) or X is pressed (exiting loop and following code logic)
+		sceCtrlPeekBufferPositive(&pad, 1);
+		if((pad.Buttons & PSP_CTRL_LTRIGGER)==PSP_CTRL_LTRIGGER)
+			color++;
+		if((pad.Buttons & PSP_CTRL_RTRIGGER)==PSP_CTRL_RTRIGGER)
+			color--;
+
+		if(color>3) color = 0;
+		if(color<0) color = 3;
+		if(color == 0) 
+    		pspDebugScreenSetTextColor(RGB(0, 255, 0)); // Default (Green) 
+		else if(color==1)
+    		pspDebugScreenSetTextColor(RGB(255, 0, 255)); // (Purple)
+		else if(color==2)
+    		pspDebugScreenSetTextColor(RGB(255, 191, 0)); // (Amber)
+		else if(color==3)
+    		pspDebugScreenSetTextColor(RGB(255, 255, 255)); // (White)
+
         sceCtrlReadBufferPositive(&pad, 1); // poll for input throughout entire function
         pspDebugScreenSetXY(0, 0);
         printf("%66s", "UMDRescue");
@@ -161,11 +188,16 @@ void dump() {
         sprintf(isopath, "ms0:/ISO/%s.iso", discid);
     else {
         int k = 0;
-        for (; k < sizeof(parsedDiscId)-1; k++) {
-            if (parsedDiscId[k] == ' ' || parsedDiscId[k] == ':')
-                parsedDiscId[k] = '_';
+        for (; k < sizeof(parsedTitle); k++) {
+            if (parsedTitle[k] == ' ' || parsedTitle[k] == ':' || parsedTitle[k] == ',')
+				if(parsedTitle[k+1] != '\0' && ( parsedTitle[k] == ',' || parsedTitle[k] == ':' ) && parsedTitle[k+1] == ' ') {
+					memmove(&parsedTitle[k], &parsedTitle[k+1], strlen(parsedTitle) - k);
+					k--;
+				}
+				else
+                	parsedTitle[k] = '_';
         }
-        sprintf(isopath, "ms0:/ISO/VIDEO/%s.iso", parsedDiscId);
+        snprintf(isopath, strlen(parsedTitle)+20, "ms0:/ISO/VIDEO/%s.iso", parsedTitle);
     }
     // open iso fd from isopath for writing
     iso = sceIoOpen(isopath, PSP_O_WRONLY | PSP_O_CREAT | PSP_O_TRUNC, 0777);
@@ -181,8 +213,9 @@ void dump() {
 
     lbawritten = 0;
 
+
 	pspDebugScreenClear();
-	while ((lbaread = sceIoRead(umd, umdreadbuffer, 512))>0) {
+    while ((lbaread = sceIoRead(umd, umdreadbuffer, 512))>0) {
 		SceUID written = sceIoWrite(iso, umdreadbuffer, lbaread * SECTOR_SIZE);
         // if memory stick runs out of space, quit
 		if(written<0){
@@ -213,9 +246,9 @@ void dump() {
 		if(color>3) color = 0;
 		if(color<0) color = 3;
 		if(color == 0) 
-    		pspDebugScreenSetTextColor(RGB(255, 0, 255)); // Default (Purple)
+    		pspDebugScreenSetTextColor(RGB(0, 255, 0)); // Default (Green) 
 		else if(color==1)
-    		pspDebugScreenSetTextColor(RGB(0, 255, 0)); // (Green) 
+    		pspDebugScreenSetTextColor(RGB(255, 0, 255)); // (Purple)
 		else if(color==2)
     		pspDebugScreenSetTextColor(RGB(255, 191, 0)); // (Amber)
 		else if(color==3)
