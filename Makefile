@@ -22,12 +22,12 @@ include $(PSPSDK)/lib/build.mak
 kxploit:
 	@echo KXploit EBOOT
 	@rm -rf PSP/
-	@mkdir -p PSP/GAME150/$(TARGET)
-	@mkdir -p "PSP/GAME150/$(TARGET)%"
+	@mkdir -p PSP/GAME150/__SCE__$(TARGET)
+	@mkdir -p "PSP/GAME150/%__SCE__$(TARGET)"
 	@rm -f EBOOT.PBP data.psp
 	@pack-pbp EBOOT.PBP PARAM.SFO ICON0.PNG NULL NULL NULL NULL NULL NULL
-	@cp EBOOT.PBP PSP/GAME150/$(TARGET)%/EBOOT.PBP
-	@cp $(TARGET).elf PSP/GAME150/$(TARGET)/EBOOT.PBP
+	@cp EBOOT.PBP PSP/GAME150/%__SCE__$(TARGET)/EBOOT.PBP
+	@cp $(TARGET).elf PSP/GAME150/__SCE__$(TARGET)/EBOOT.PBP
 
 standalone:
 	@echo Standalone EBOOT
@@ -46,4 +46,4 @@ endif
 all: kxploit standalone
 
 clean:
-	rm -rf *.o data.psp *.PBP PSP/ *.elf *.prx
+	rm -rf *.o data.psp *.PBP PSP/ *.elf *.prx PARAM*
