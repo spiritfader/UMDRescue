@@ -1,8 +1,6 @@
 TARGET = UMDRescue
 
 OBJS = main.o oe_malloc.o
-#OBJS = main.o
-#BUILD_PRX = 1
 
 EXTRA_TARGETS = EBOOT.PBP
 
@@ -16,16 +14,7 @@ CFLAGS = -O2 -G0 -Wall
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 
-VERSION = 01.00
-
-
-#INCDIR = -I./inc
-
 LIBS = -lpspumd #-lpspexploit -lpsprtc
-
-
-
-LIBDIR = -L$(PSPSDK)/lib
 
 PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
@@ -55,8 +44,6 @@ BUILD_PRX = 1
 endif
 
 all: kxploit standalone
-
-
 
 clean:
 	rm -rf *.o data.psp *.PBP PSP/ *.elf *.prx
