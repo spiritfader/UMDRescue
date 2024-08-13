@@ -4,7 +4,7 @@ OBJS = main.o oe_malloc.o
 
 EXTRA_TARGETS = EBOOT.PBP
 
-PSP_EBOOT_ICON = ICON0.PNG
+PSP_EBOOT_ICON = res/ICON0.PNG
 
 PSP_EBOOT_TITLE = Universal UMD Dumper
 
@@ -25,7 +25,7 @@ kxploit:
 	@mkdir -p PSP/GAME150/__SCE__$(TARGET)
 	@mkdir -p "PSP/GAME150/%__SCE__$(TARGET)"
 	@rm -f EBOOT.PBP data.psp
-	@pack-pbp EBOOT.PBP PARAM.SFO ICON0.PNG NULL NULL NULL NULL NULL NULL
+	@pack-pbp EBOOT.PBP PARAM.SFO res/ICON0.PNG NULL NULL NULL res/sound.at3 NULL NULL
 	@cp EBOOT.PBP PSP/GAME150/%__SCE__$(TARGET)/EBOOT.PBP
 	@cp $(TARGET).elf PSP/GAME150/__SCE__$(TARGET)/EBOOT.PBP
 
@@ -35,7 +35,7 @@ standalone:
 	$(CC) $(CFLAGS) $(OBJS) -specs=$(PSPSDK)/lib/prxspecs -Wl,-q,-T$(PSPSDK)/lib/linkfile.prx $(LDFLAGS)  $(LIBS) -o $(TARGET).elf
 	@psp-fixup-imports UMDRescue.elf
 	@psp-prxgen  $(TARGET).elf $(TARGET).prx
-	@pack-pbp EBOOT.PBP PARAM.SFO ICON0.PNG NULL NULL NULL NULL $(TARGET).prx NULL
+	@pack-pbp EBOOT.PBP PARAM.SFO res/ICON0.PNG NULL NULL NULL res/sound.at3 $(TARGET).prx NULL
 	@./psptools/pack_ms_game.py --vanity UMDRescue EBOOT.PBP EBOOT_ENC.PBP && mv EBOOT_ENC.PBP EBOOT.PBP
 	@cp EBOOT.PBP PSP/GAME/$(TARGET)/EBOOT.PBP
 
