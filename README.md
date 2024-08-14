@@ -1,27 +1,25 @@
-UMDRescue is a kernel level UMD disc dumper allowing you to backup your UMD discs for personal use using a PSP.
-<br/>
+UMDRescue is a UMD disc dumper allowing you to backup your UMD discs for personal use using a PSP. The kxploit version will create a 1:1 backup unlike the higher Firmware version. This is due to permissions it seems that Sony
+decided to bump security up on runlevel permissions later on in higher Firmwares. The None kxploit version will still dump Games fine. Just nothing else on the UMD.
 
-***Disclaimer*** <br/>
-Only dump UMDs that you legally own and do not share them with anyone. <br/>
+***Disclaimer***
+
+Only dump UMDs that you legally own and do not share them with anyone.
 This tool is not to be used for piracy under any circumstances.
-<br/>
 
-***Installation*** <br/>
-- Create a `seplugins` folder in the root of your memory stick, denoted as `ms0:` for the rest of these instructions.
-- Copy the `UMDRescue.prx` to `ms0:/seplugins`.
-- If you do not already have a `VSH.TXT` file in the `ms0:/seplugins` folder, create it or copy over the provided `VSH.TXT`.
-  - If you do already have a `VSH.TXT` file, add the line `ms0:/seplugins/UMDRescue.prx 1` to the bottom of the file.
-- Power on the PSP **WITH** the memory stick already inserted, then insert the UMD you wish to backup. 
-- Wait until it loads, then press the `SQUARE` button to launch UMDRescue.
-- Press `X` to begin dumping your UMD.
-  - Game images will be saved to `ms0:/IS0` 
-  - Video images will be saved to `ms0:/ISO/VIDEO`
-<br/>
+#### Installation
 
-***Compiling from source*** <br/>
-If you wish to compile from source, you need `PSPSDK (Version 1.0+beta2)` https://github.com/pspdev/pspsdk
-<br/>
+* If your one a higher FW than 1.50 and *DO NOT* have the 1.50 Kernel Add-on. Use the UMDRescue in `PSP/GAME`
+* If using 1.50 OFW or a CFW compatible with 1.50 Kernel Add-on you can use the kxploit version in `PSP/GAME150` both folders are required. If your on 1.50 OFW just rename the `GAME150` folder to `GAME`.
 
-***Credits*** <br/>
-Original source code and all credit for idea to Avanaboy <br/>
-https://web.archive.org/web/20121215031736/http://avanaboy-console.com/
+##### Compiling from source
+
+If you wish to compile from source, you need [PSPSDK](https://github.com/pspdev/pspsdk)
+
+##### Credits
+
+* Original source code and all credit for idea to Avanaboy
+* Initial idea was spiritfader's. I took what they did and created the 1.50 kxploit version as well.
+
+##### History
+
+* https://web.archive.org/web/20121215031736/http://avanaboy-console.com/
