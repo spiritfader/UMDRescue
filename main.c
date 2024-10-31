@@ -20,10 +20,10 @@ PSP_MODULE_INFO("UMDRescue", PSP_MODULE_USER, 1, 0);
 
 char* umdreadbuffer = NULL;
 char discid[16] = { 0 };
-char title[128] = { 0 };
-char isopath[30] = { 0 };
+wchar_t title[128] = { 0 };
+wchar_t isopath[30] = { 0 };
 char gtype[3] = { 0 };
-char parsedTitle[128] = { 0 };
+wchar_t parsedTitle[128] = { 0 };
 char parsedDiscId[17] = { 0 };
 SceUID threadnumber, lbaread, umdlastlba, isosize, dumppercent, lbawritten, sec = -1;
 SceUID umd, iso, fd, threadlist[66], st_thlist_first[66], st_thnum_first = -1;
@@ -185,7 +185,8 @@ void dump() {
 
     // determine location to write iso depending on gtype variable [V]ideo or [G]ame] (this logic sucks redo this and include better filename check)
     if (gtype[0] == 'G')
-        sprintf(isopath, "ms0:/ISO/%s.iso", discid);
+		sprintf(isopath, "ms0:/ISO/%s.iso", discid);
+        //snprintf(isopath, strlen(discid)+15+strlen(title), "ms0:/ISO/%s.iso", discid);
     else {
         int k = 0;
         for (; k < sizeof(parsedTitle); k++) {
