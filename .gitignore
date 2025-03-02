@@ -1,0 +1,11 @@
+*.o
+*.elf
+*.prx
+*.PBP
+.vscode
+PARAM*
+data.psp
+PSP/
+release/
+psptools/psptool/__pycache__/
+psptools/psptool/prxtypes/__pycache__/
