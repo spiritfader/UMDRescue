@@ -3,6 +3,7 @@
  
  Copyright (C) 2024, 2025 spiritfader
  Copyright (C) 2024, 2025 krazynez
+ Copyright (C) 2025 NerdyKyogre
 
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
