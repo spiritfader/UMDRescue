@@ -41,7 +41,16 @@
 // macro pspDebugScreenPrintf to printf, 2048 to SECTOR_SIZE, and limit RGB params 
 #define printf pspDebugScreenPrintf
 #define screenSet pspDebugScreenSetXY
+#define clearScreen pspDebugScreenClear()
+
 #define titleBar screenSet(0, 1);printf("%66s", version);
+#define statusBar screenSet(0, 29);printf("Status: %s", status);
+#define footer screenSet(0, 31);printf("     L-R          <->     (SQUARE)    (X)      (O)        (TRIANGLE)");\
+screenSet(0, 32);printf("    COLOR       DISPLAY   MOUNT UMD   DUMP  CANCEL DUMP      Exit   ");
+
+char status_clear[128] = {0};
+#define clearStatus screenSet(0, 29);printf("%s", status_clear); //pspdebugprintf does not appear to actually overwrite trailing spaces so this doesn't strictly work at the moment, need more research
+
 #define RGB(r, g, b) ((r) | ((g) << 8) | ((b) << 16))
 #define SECTOR_SIZE 0x800
 SceCtrlData pad;
@@ -70,12 +79,9 @@ char gtype[3] = { 0 }; // type of disc from fourth field of umd_data.bin
 char parsedSfoTitle[256] = { 0 }; // parsed title from PARAM.SFO to remove invalid characters 
 //char parsedDiscId[17] = { 0 }; // parsed discid from first field of umd_data.bin to remove invalid characters
 
-
 char status[128] = "Disc not mounted - safe to insert new UMD";
 int umdDriveStatus = 0;
 
-char status_clear[128] = {0};
-#define clearStatus screenSet(0, 29);printf("%s", status_clear); //pspdebugprintf does not appear to actually overwrite trailing spaces so this doesn't strictly work at the moment, need more research
 
 #ifdef PRX
 	#define BUILDPRX BUILD " (PRX Mode)"
@@ -242,26 +248,33 @@ int dump(){
 
 		// UMD Info vdisplay
 		if(display == 0) {
-			//sceCtrlReadBufferPositive(&pad, 1); // poll for input throughout entire function
 			titleBar;
-			screenSet(0, 4);
-			printf("UMD Info: %s", umddatabin);
-			screenSet(7, 6);
-			printf("%14s%s", "SFO Title: ", (gtype[0] == 'G') ? sfoTitle : parsedSfoTitle);
-			screenSet(7, 8);
-			printf("%14s%s", "Type: ", (gtype[0] == 'G') ? "Game" : "Video");
-			screenSet(7, 10);
-			printf("%14s%s", "Disc ID: ", discid);
-			screenSet(7, 12);
-			printf("%14s%d", "Total LBA: ", umdlastlba);
-			screenSet(7, 14);
-			printf("%14s%d", "Size (bytes): ", bytes);
-			screenSet(7, 16);
-			printf("%14s%.2f", "Size (MB): ", megabytes);
-			screenSet(7, 18);
-			printf("%14s%.2f", "Size (GB): ", gigabytes);
-			screenSet(7, 20);
-			printf("%14s%s", "ISO Path: ", isopath);
+			if (umdDriveStatus) { 
+				screenSet(0, 4);
+				printf("UMD Info: %s", umddatabin);
+				screenSet(7, 6);
+				printf("%14s%s", "SFO Title: ", (gtype[0] == 'G') ? sfoTitle : parsedSfoTitle);
+				screenSet(7, 8);
+				printf("%14s%s", "Type: ", (gtype[0] == 'G') ? "Game" : "Video");
+				screenSet(7, 10);
+				printf("%14s%s", "Disc ID: ", discid);
+				screenSet(7, 12);
+				printf("%14s%d", "Total LBA: ", umdlastlba);
+				screenSet(7, 14);
+				printf("%14s%d", "Size (bytes): ", bytes);
+				screenSet(7, 16);
+				printf("%14s%.2f", "Size (MB): ", megabytes);
+				screenSet(7, 18);
+				printf("%14s%.2f", "Size (GB): ", gigabytes);
+				screenSet(7, 20);
+				printf("%14s%s", "ISO Path: ", isopath);
+			}
+			else {
+				screenSet(2, 16);
+				printf("To view UMD information, insert and mount UMD by pressing Square");
+			}
+			statusBar;
+			footer;
 		}
 
 		// System information vdisplay
@@ -279,16 +292,18 @@ int dump(){
 			printf("%23s%.2f%s", "Kernel Max Free Mem: ", (sceKernelMaxFreeMemSize()/1024.0), " Kilobytes");
 			screenSet(3, 14);
 			printf("%23s%.2f%s", "Kernel Total Free Mem: ", (sceKernelTotalFreeMemSize()/1024.0), " Kilobytes");
+			statusBar;
+			footer;
 		}
 		
 		// stdout screen vdisplay
 		//else if(display == 3) {
-		//	pspDebugScreenClear(); // blank screen
-		//	screenSet(0, 1);
-		//	printf("%66s", version);
+		//	titlebar;
 		//	screenSet(0, 4);
 		//	printf("STDOUT:");
 		//	screenSet(7, 6);
+		// 	statusBar;
+		//	footer;
 		//}
 
 		// dump status vdisplay
@@ -302,20 +317,23 @@ int dump(){
 			printf("Writing Bytes: %d/%d - %d%% ", lbawritten * SECTOR_SIZE, umdlastlba * SECTOR_SIZE, dumppercent);
 			//screenSet(0, 19);
 			//printf("Dump Status: %s", status);
-			if ((dump_in_progress == 0) && (((isosize) != (umdlastlba*SECTOR_SIZE)) && (isosize > 0))) {
-				screenSet(0, 21);
-				printf("WARNING: ISO size doesn't match UMD size\n\n");
-				printf("ISO size: %d\n\nUMD size: %d\n", isosize, (umdlastlba*SECTOR_SIZE));
-			}
+			
+			//if ((dump_in_progress == 0) && (((isosize) != (umdlastlba*SECTOR_SIZE)) && (isosize > 0))) {
+			//	screenSet(0, 21);
+			//	printf("WARNING: ISO size doesn't match UMD size\n\n");
+			//	printf("ISO size: %d\n\nUMD size: %d\n", isosize, (umdlastlba*SECTOR_SIZE));
+			//}
+			statusBar;
+			footer;
 		}
 
 		// define program controls
-		screenSet(0, 29);
-		printf("Status: %s", status);
-		screenSet(0, 31);
-		printf("     L-R          <->     (SQUARE)    (X)      (O)        (TRIANGLE)");
-		screenSet(0, 32);
-		printf("    COLOR       DISPLAY   MOUNT UMD   DUMP  CANCEL DUMP      Exit   ");
+		//screenSet(0, 29);
+		//printf("Status: %s", status);
+		//screenSet(0, 31);
+		//printf("     L-R          <->     (SQUARE)    (X)      (O)        (TRIANGLE)");
+		//screenSet(0, 32);
+		//printf("    COLOR       DISPLAY   MOUNT UMD   DUMP  CANCEL DUMP      Exit   ");
 		
 		sceDisplayWaitVblankStart(); // Wait for vertical blank start
 
@@ -513,12 +531,13 @@ int dump(){
 				if (fd >= 0) {
 					isosize = sceIoLseek(fd, 0, SEEK_END);
 					sceIoClose(fd);
-					if ((isosize) != ((umdlastlba + 1) * 2048)) {
+					if ((isosize) != ((umdlastlba) * SECTOR_SIZE)) { // removed 1 becuase potentially didn't need off by one error
 						sceIoRemove(isopath); //COMMENTED OUT FOR TESTING, UNCOMMENT FOR RELEASE
-						sprintf(status, "Bad dump; ISO size doesn't match UMD size.");
+						sprintf(status, "Bad dump; ISO size: %d =/= UMD Size: %d.", isosize, ((umdlastlba) * SECTOR_SIZE));
 						clearStatus;
 					}
 				}
+
 				// close the umd file descriptor 
 				// for future reference, DO NOT FREE MEMORY HERE
 				// this results in a use-after-free/double-free on any dumps after the first one
@@ -544,7 +563,12 @@ int main(void) {
 
 	// change program title/name header depending on kernel version/type
 	if(sceKernelDevkitVersion() > 0x01050001) {
-		strcat(version, " (Compat Mode)");
+		if (!sceIoDevctl("emulator:", 0, NULL, 0, NULL, 0)) {
+			strcat(version," (Emulator Mode)");
+		}
+		else{
+			strcat(version, " (Compat Mode)");
+		}
 	}
 	else {
 		strcat(version," (1.5 Mode)");
