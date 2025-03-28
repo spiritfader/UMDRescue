@@ -126,7 +126,7 @@ int parse_umd_data(void) {
 	else {
 		return -1;
 	}
-	
+
 	// read size (last lba) of UMD disc to umdlastlba
 	fd = sceIoOpen("umd0:", PSP_O_RDONLY, 0777);
 	if (fd >= 0) {
@@ -198,9 +198,6 @@ int dump(){
 	cpufreq = scePowerGetCpuClockFrequencyFloat();
 	busfreq = scePowerGetBusClockFrequencyFloat();
 
-	int batTimeLeft = scePowerGetBatteryLifeTime();
-	int batPercentLeft = scePowerGetBatteryLifePercent();
-
 	int dump_in_progress = 0, bytes=0;
 	float megabytes=0.0, gigabytes=0.0;
 	
@@ -209,6 +206,13 @@ int dump(){
 	
 	// While loop to present disc information until Start is pressed (exiting) or X is pressed (exiting loop and following code logic)
 	do {
+
+		// determine battery life and output charging status
+		//int batLifetimeMin = scePowerGetBatteryLifeTime();
+		//int batTimeHours = (batLifetimeMin / 60);
+		//int batTimeMinRemain = (batLifetimeMin % 60);
+		//int batPercentLeft = scePowerGetBatteryLifePercent();
+
 		if(sceUmdCheckMedium() == 0) {
 			strcpy(status, "No UMD Inserted - please insert one now.");
 			clearStatus;
@@ -270,8 +274,8 @@ int dump(){
 				printf("%14s%.2f", "Size (MB): ", megabytes);
 				screenSet(7, 18);
 				printf("%14s%.2f", "Size (GB): ", gigabytes);
-				screenSet(7, 20);
-				printf("%14s%s", "ISO Path: ", isopath);
+				//screenSet(7, 20);
+				//printf("%14s%s", "ISO Path: ", isopath);
 			}
 			else {
 				screenSet(2, 16);
@@ -285,17 +289,16 @@ int dump(){
 			titleBar;
 			screenSet(0, 4);
 			printf("Sysinfo:");
-			screenSet(3, 6);
-			if (!scePowerIsBatteryExist()) {
-				printf("%23s%s", "Battery: ", "No Battery Dectected");
-			}
-			else if (!scePowerIsBatteryCharging()) {
-				printf("%23s%d%s%d%s", "Battery: ", batPercentLeft, "% (", (batTimeLeft), ") remaining");
-			}
-			else {
-				printf("%23s%d%s%s", "Battery: ", batPercentLeft, "% ", "(charging)");
-			}
-			
+			//screenSet(3, 6);
+			//if (!scePowerIsBatteryExist()) {
+			//	printf("%23s%s", "Battery: ", "No Battery Dectected");
+			//}
+			//else if (!scePowerIsBatteryCharging()) {
+			//	printf("%23s%d%s%d%s%d%s", "Battery: ", batPercentLeft, "% (", (batTimeHours), ":", batTimeMinRemain, ") remaining");
+			//}
+			//else {
+			//	printf("%23s%d%s%s", "Battery: ", batPercentLeft, "% ", "(charging)");
+			//}
 			screenSet(3, 8);
 			printf("%23s%d", "Firmware Version: ", sceKernelDevkitVersion());
 			screenSet(3, 10);
@@ -327,8 +330,8 @@ int dump(){
 			printf("Writing Sectors: %d/%d - %d%% ", lbawritten, umdlastlba, dumppercent);
 			screenSet(0, 17);
 			printf("Writing Bytes: %d/%d - %d%% ", lbawritten * SECTOR_SIZE, umdlastlba * SECTOR_SIZE, dumppercent);
-			//screenSet(0, 19);
-			//printf("Dump Status: %s", status);
+			screenSet(0, 19);
+			printf("Dump Status: %s", status);
 			
 			//if ((dump_in_progress == 0) && (((isosize) != (umdlastlba*SECTOR_SIZE)) && (isosize > 0))) {
 			//	screenSet(0, 21);
@@ -339,14 +342,6 @@ int dump(){
 			footer;
 		}
 
-		// define program controls
-		//screenSet(0, 29);
-		//printf("Status: %s", status);
-		//screenSet(0, 31);
-		//printf("     L-R          <->     (SQUARE)    (X)      (O)        (TRIANGLE)");
-		//screenSet(0, 32);
-		//printf("    COLOR       DISPLAY   MOUNT UMD   DUMP  CANCEL DUMP      Exit   ");
-		
 		sceDisplayWaitVblankStart(); // Wait for vertical blank start
 
 		if (pad.Buttons & PSP_CTRL_TRIANGLE) { // if triangle is pressed, free memory and quit program
@@ -429,8 +424,7 @@ int dump(){
 					//continue;
 				}
 				else {
-					
-					// format discid to be used as the ISO name
+					// format/sanitize discid of erroneous chars to be used as the ISO name  
 					char destName[sizeof(discid)] = "";
 					strcpy(destName, discid);
 					char invalidChar[3] = {' ',':',','};
@@ -484,8 +478,6 @@ int dump(){
 
 					sceIoDclose(checkUmdParDir);
 					sceIoDclose(checkUmdSubDir);
-
-					// sanitize iso and contents filename of erroneous chars  
 
 					// set isopath to be the combination of outputDir/filename.iso
 
@@ -546,7 +538,7 @@ int dump(){
 				if (fd >= 0) {
 					isosize = sceIoLseek(fd, 0, SEEK_END);
 					sceIoClose(fd);
-					if ((isosize) != ((umdlastlba) * SECTOR_SIZE)) { // removed 1 becuase potentially didn't need off by one error
+					if ((isosize) != ((umdlastlba) * SECTOR_SIZE)) { // removed 1 because no off by one error
 						sceIoRemove(isopath); //COMMENTED OUT FOR TESTING, UNCOMMENT FOR RELEASE
 						sprintf(status, "Bad dump; ISO size: %d =/= UMD Size: %d.", isosize, ((umdlastlba) * SECTOR_SIZE));
 						clearStatus;
@@ -558,11 +550,6 @@ int dump(){
 				// this results in a use-after-free/double-free on any dumps after the first one
 				// instead, free memory in the input handler for triangle before exiting.
 				sceIoClose(umd);
-				//oe_free(umddatabin);
-				//oe_free(discid);
-				//oe_free(guid);
-				//oe_free(region);
-				//oe_free(type);
 			}
 		}
 	} while (1);
