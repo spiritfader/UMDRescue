@@ -55,9 +55,9 @@ char status_clear[128] = {0};
 #define SECTOR_SIZE 0x800
 SceCtrlData pad;
 
-// call external funcs
-extern void* oe_malloc(size_t size);
-extern void oe_free(void*);
+// call external funcs - not using oe_malloc anymore
+//extern void* oe_malloc(size_t size);
+//extern void oe_free(void*);
 
 // define psp module as user module
 PSP_MODULE_INFO("UMDRescue", PSP_MODULE_USER, 1, 0);
@@ -197,6 +197,10 @@ int dump(){
 	
 	cpufreq = scePowerGetCpuClockFrequencyFloat();
 	busfreq = scePowerGetBusClockFrequencyFloat();
+
+	int batTimeLeft = scePowerGetBatteryLifeTime();
+	int batPercentLeft = scePowerGetBatteryLifePercent();
+
 	int dump_in_progress = 0, bytes=0;
 	float megabytes=0.0, gigabytes=0.0;
 	
@@ -276,26 +280,34 @@ int dump(){
 			statusBar;
 			footer;
 		}
-
 		// System information vdisplay
 		else if(display == 1) {
 			titleBar;
 			screenSet(0, 4);
 			printf("Sysinfo:");
 			screenSet(3, 6);
-			printf("%23s%d", "Firmware Version: ", sceKernelDevkitVersion());
+			if (!scePowerIsBatteryExist()) {
+				printf("%23s%s", "Battery: ", "No Battery Dectected");
+			}
+			else if (!scePowerIsBatteryCharging()) {
+				printf("%23s%d%s%d%s", "Battery: ", batPercentLeft, "% (", (batTimeLeft), ") remaining");
+			}
+			else {
+				printf("%23s%d%s%s", "Battery: ", batPercentLeft, "% ", "(charging)");
+			}
+			
 			screenSet(3, 8);
-			printf("%23s%.2f%s", "CPU Clock Frequency: ", cpufreq, " MHz");
+			printf("%23s%d", "Firmware Version: ", sceKernelDevkitVersion());
 			screenSet(3, 10);
-			printf("%23s%.2f%s", "Bus Clock Frequency: ", busfreq, " MHz");
+			printf("%23s%.2f%s%.2f%s", "CPU / Bus Clock Freq: ", cpufreq, " MHz / ", busfreq, " MHz");
 			screenSet(3, 12);
-			printf("%23s%.2f%s", "Kernel Max Free Mem: ", (sceKernelMaxFreeMemSize()/1024.0), " Kilobytes");
-			screenSet(3, 14);
 			printf("%23s%.2f%s", "Kernel Total Free Mem: ", (sceKernelTotalFreeMemSize()/1024.0), " Kilobytes");
+			screenSet(3, 14);
+			printf("%23s%.2f%s", "User Total Free Mem: ", (pspSdkTotalFreeUserMemSize()/1024.0), " Kilobytes");
 			statusBar;
 			footer;
 		}
-		
+
 		// stdout screen vdisplay
 		//else if(display == 3) {
 		//	titlebar;
@@ -398,6 +410,7 @@ int dump(){
 		}
 		// dump start dump logic with X 
 		if (pad.Buttons & PSP_CTRL_CROSS){
+			//insert time function to measure elapsed time
 			if (!dump_in_progress) {
 				dump_in_progress = 1;
 				sprintf(status, "Dumping...");
@@ -522,6 +535,8 @@ int dump(){
 			//if we're finished, check image and clean up
 			else {
 				dump_in_progress = 0;
+				//if (timerActive)
+				//	stop the thing
 				sprintf(status, "Successfully wrote ISO");
 				clearStatus;
 			}

@@ -6,11 +6,11 @@ BUILD := \"$(TARGET)\ $(VERSION)\"
 
 PSP_EBOOT_TITLE := $(TARGET)
 PSP_EBOOT_SFO := PARAM.SFO
-PSP_EBOOT_ICON := res/ICON0.PNG
+PSP_EBOOT_ICON := assets/icon0.png
 PSP_EBOOT_ICON1 := NULL
 PSP_EBOOT_UNKPNG := NULL
 PSP_EBOOT_PIC1 := NULL
-PSP_EBOOT_SND0 := res/sound.at3
+PSP_EBOOT_SND0 := assets/sound.at3
 PSP_EBOOT_PSAR := NULL
 PSP_EBOOT := EBOOT.PBP
 
@@ -22,7 +22,7 @@ PSPDEV := $(shell psp-config --psp-prefix)
 DEFINE := -DBUILD=$(BUILD) -D_PSP_FW_VERSION=$(_PSP_FW_VERSION)
 WARNINGS := -Wall -Wextra
 
-override OBJS := main.o oe_malloc.o
+override OBJS := main.o #oe_malloc.o
 override INCLUDE := -I. -I$(PSPDEV)/include -I$(PSPSDK)/include
 override CC := psp-gcc
 override CFLAGS := $(INCLUDE) -march=allegrex -mtune=allegrex -std=c99 -g -G0 -O2 -Os $(DEFINE) -fdiagnostics-color=always $(WARNINGS)
