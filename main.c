@@ -67,21 +67,24 @@ char* umdreadbuffer = NULL;
 char umddatabin[96] = { 0 };
 //char *discid, *guid, *region, *type;
 
-char discid[25]; // first field of umd_data.bin
+// Update the discid buffer size to match the umddatabin size for maximum compatibility
+char discid[96]; // Increase from 25 to 96 to match umddatabin buffer size
 char guid[15]; // second field of umd_data.bin
 char region[3]; // third field of umd_data.bin
 char type[13]; // fourth field of umd_data.bin
 
-char sfoTitle[128] = { 0 }; // title from PARAM.SFO
-//char isopath[31] = { 0 };
-char isopath[128] = { 0 };
-char gtype[3] = { 0 }; // type of disc from fourth field of umd_data.bin
-char parsedSfoTitle[256] = { 0 }; // parsed title from PARAM.SFO to remove invalid characters 
-//char parsedDiscId[17] = { 0 }; // parsed discid from first field of umd_data.bin to remove invalid characters
+char isopath[256] = { 0 };
+char audioSfoTitle[128] = { 0 }; // PARAM.SFO Title for Audio Discs
+char gameSfoTitle[128] = { 0 }; // PARAM.SFO Title for Game Discs
+char videoSfoTitle[128] = { 0 }; // PARAM.SFO Title for Video Discs
+char updaterSfoTitle[128] = { 0 }; // PARAM.SFO Title for Updater
+
+char discTypeDisplay[128] = {0};
+char discTypeDescription[64]  = {0};
+char discTypeShort[5] = {0};
 
 char status[128] = "Disc not mounted - safe to insert new UMD";
 int umdDriveStatus = 0;
-
 
 #ifdef PRX
 	#define BUILDPRX BUILD " (PRX Mode)"
@@ -92,8 +95,6 @@ int umdDriveStatus = 0;
 	char version[128] = BUILD;
 #endif
 
-//pspUmdInfo umdType;
-
 SceUID threadnumber, lbaread, umdlastlba, isosize, dumppercent, lbawritten, sec = -1;
 SceUID umd, iso, fd, threadlist[66], st_thlist_first[66], st_thnum_first = -1;
 static int color = 0;
@@ -103,25 +104,177 @@ float cpufreq = 0.0, busfreq = 0.0;
 static int num_colors = 5;
 static uint32_t COLORS[5] = {RGB(0, 255, 0),RGB(255, 0, 255),RGB(255, 191, 0),RGB(55, 255, 255),RGB(255, 255, 255)};
 
-// parse UMD_DATA.bin to derive common disc info fields
+// sfo header
+typedef struct {
+    uint32_t magic;              // should be PSP_SFO_MAGIC
+    uint32_t version;            // usually 0x101
+    uint32_t key_table_offset;   // from start of file
+    uint32_t data_table_offset;  // from start of file
+    uint32_t num_entries;        // number of entries
+} __attribute__((packed)) sfo_header_t;
+
+// sfo entry
+typedef struct {
+    uint16_t key_offset;    // offset into key table (bytes)
+    uint8_t  alignment;     // usually 4
+    uint8_t  data_fmt;      // 0=binary, 2=utf8, ...
+    uint32_t data_max_len;  // max size (in bytes)
+    uint32_t data_len;      // actual size in file
+    uint32_t data_offset;   // offset into data table
+} __attribute__((packed)) sfo_entry_t;
+
+// disc type info   
+struct discType {
+        unsigned int flag;        // bitmask flag for UMD type
+        const char *label;        // human-readable media name
+        char shorthand;           // single-letter code
+        const char *sfoPath;      // PARAM.SFO path for partition
+        char *titleOutput;        // buffer to store the title
+    } discTypes[] = {
+        { PSP_UMD_TYPE_GAME,  "Game",  'G', "disc0:/PSP_GAME/PARAM.SFO", gameSfoTitle },
+        { PSP_UMD_TYPE_VIDEO, "Video", 'V', "disc0:/UMD_VIDEO/PARAM.SFO", videoSfoTitle },
+        { PSP_UMD_TYPE_AUDIO, "Audio", 'A', "disc0:/UMD_AUDIO/PARAM.SFO", audioSfoTitle },
+    };
+
+// get entry from SFO (title)
+int get_sfo_field(const char *path, const char *key, char *outBuf, size_t outBufSize) {
+    int fd = sceIoOpen(path, PSP_O_RDONLY, 0777);
+    if (fd < 0) {
+        return fd;
+    }
+
+    // read and validate header
+    sfo_header_t hdr;
+    if (sceIoRead(fd, &hdr, sizeof(hdr)) != sizeof(hdr)
+     || hdr.magic != 0x46535000) { // “\0PSF” in little‐endian
+        sceIoClose(fd);
+        return -1;
+    }
+
+    // read the entry table
+    size_t entry_table_offset = sizeof(sfo_header_t);
+    size_t entries_size        = hdr.num_entries * sizeof(sfo_entry_t);
+    sfo_entry_t *entries = malloc(entries_size);
+    if (!entries) {
+        sceIoClose(fd);
+        return -1;
+    }
+    sceIoLseek(fd, entry_table_offset, PSP_SEEK_SET);
+    if (sceIoRead(fd, entries, entries_size) != (int)entries_size) {
+        free(entries);
+        sceIoClose(fd);
+        return -1;
+    }
+
+    // walk the entries looking for “key”
+    for (uint32_t i = 0; i < hdr.num_entries; i++) {
+        sfo_entry_t *e = &entries[i];
+
+        // read the key into a small buffer
+        char keybuf[32] = {0};
+        sceIoLseek(fd,
+                   hdr.key_table_offset + e->key_offset,
+                   PSP_SEEK_SET);
+        sceIoRead(fd, keybuf, sizeof(keybuf)-1);
+
+        if (strcmp(keybuf, key) == 0) {
+            // now actually read the key string
+            uint32_t read_len = e->data_len;
+            if (read_len > outBufSize - 1)
+                read_len = outBufSize - 1;
+
+            sceIoLseek(fd,
+                      hdr.data_table_offset + e->data_offset,
+                      PSP_SEEK_SET);
+            sceIoRead(fd, outBuf, read_len);
+            outBuf[read_len] = '\0';
+
+            free(entries);
+            sceIoClose(fd);
+            return 0;
+        }
+    }
+
+    free(entries);
+    sceIoClose(fd);
+    return -1;
+}
+
+// parse pspUmdInfo, UMD_DATA.bin and PARAM.SFO files to derive common disc info fields
 int parse_umd_data(void) {
+	
+    // get disc type
+    pspUmdInfo info;
+    info.size = sizeof(info);
+    int result = sceUmdGetDiscInfo(&info);
+    unsigned int discTypeMask = (result >= 0) ? info.type : 0;
+	
+	// prepare description and code buffers
+    char *writePtr = discTypeDescription;
+    size_t remaining = sizeof(discTypeDescription);
+    int codeIndex = 0;
+
+    // build description, shorthand codes, and load titles for each disc type flag
+    for (size_t i = 0; i < sizeof(discTypes)/sizeof(discTypes[0]); i++) {
+        if (discTypeMask & discTypes[i].flag) {
+            // delimiter between names
+            const char *delimiter = (codeIndex > 0) ? " + " : "";
+            int written = snprintf(writePtr, remaining, "%s%s", delimiter, discTypes[i].label);
+            if (written < 0 || (size_t)written >= remaining) {
+                break; // buffer full
+            }
+            writePtr  += written;
+            remaining -= written;
+
+            // add single-letter code
+            discTypeShort[codeIndex++] = discTypes[i].shorthand;
+
+            // retrieve SFO title
+            if (get_sfo_field(discTypes[i].sfoPath,
+                              "TITLE",
+                              discTypes[i].titleOutput,
+                              128) < 0) {
+                discTypes[i].titleOutput[0] = '\0';
+			}
+        }
+    }
+
+    // fallback to "Unknown" if no types matched
+    if (codeIndex == 0) {
+        snprintf(discTypeDescription, sizeof(discTypeDescription), "Unknown"); 
+		discTypeShort[codeIndex++] = 'U';
+    }
+    discTypeShort[codeIndex] = '\0';
+
+    // compose final disc type display value
+    snprintf(discTypeDisplay, sizeof(discTypeDisplay), "%s (0x%02X / %s)", discTypeDescription, discTypeMask, discTypeShort);
+
+	//get disc id from UMD_DATA.BIN, based on delimiter "|"
 	fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777);
 	if (fd >= 0) {
-		sceIoLseek(fd, 0, SEEK_SET);
-		sceIoRead(fd, umddatabin, 96);
-		
-		// queue read to determine type from umd_data.bin
-		sceIoLseek(fd, 0x21, SEEK_SET);
-		sceIoRead(fd, gtype, 3);
-
-		// queue read to determine disc id from umd_data.bin
-		// read until offset 00000010 into discid variable from "disc0:/UMD_DATA.BIN"
-		sceIoLseek(fd, 0, SEEK_SET);
-		if(gtype[0] == 'G') {
-			sceIoRead(fd, discid, 10);
-		}
-
-	sceIoClose(fd);
+        // read the entire file
+        sceIoLseek(fd, 0, SEEK_SET);
+        sceIoRead(fd, umddatabin, sizeof(umddatabin));
+        
+        // ensure the buffer is null-terminated for string operations
+        umddatabin[sizeof(umddatabin) - 1] = '\0';
+        
+        // now parse the buffer
+        char* delimiterPos = strchr(umddatabin, '|');
+        
+        if (delimiterPos != NULL) {
+            // calculate the length of the disc ID
+            size_t idLength = delimiterPos - umddatabin;
+            
+            // copy the disc ID to the discid variable
+            memcpy(discid, umddatabin, idLength);
+            discid[idLength] = '\0'; // Ensure null termination
+        } else {
+            // no delimiter found, copy the entire buffer
+            strcpy(discid, umddatabin);
+        }
+        
+        sceIoClose(fd);
 	}
 	else {
 		return -1;
@@ -134,42 +287,15 @@ int parse_umd_data(void) {
 		sceIoClose(fd);
 	}
 
-	//determines content name from gtype variable and "PARAM.SFO" located in "/PSP_GAME" or "/UMD_VIDEO"
-	if (gtype[0] == 'G') {
-		fd = sceIoOpen("disc0:/PSP_GAME/PARAM.SFO", PSP_O_RDONLY, 0777);
-		if (fd >= 0) {
-			sceIoLseek(fd, 0x158, SEEK_SET);
-			sceIoRead(fd, sfoTitle, 17);
-			sfoTitle[17] = 0;
-			sceIoClose(fd);
-		}
-	}
-
-	else if (gtype[0] == 'V') {
-		fd = sceIoOpen("disc0:/UMD_VIDEO/PARAM.SFO", PSP_O_RDONLY, 0777);
-		if (fd >= 0) {
-			sceIoLseek(fd, 0x74, SEEK_SET);
-			sceIoRead(fd, sfoTitle, sizeof(sfoTitle));
-			unsigned int i = 0, j = 0;
-			for(;i<sizeof(sfoTitle); i++) {
-				if(sfoTitle[i] == '\0') {
-					sceIoLseek(fd, 0x50, SEEK_SET);
-					sceIoRead(fd, sfoTitle, sizeof(sfoTitle));
-					if(sfoTitle[i] == '\0') break;
-					else {
-						parsedSfoTitle[j] = sfoTitle[i];
-						j++;
-					}
-				}
-				else {
-					parsedSfoTitle[j] = sfoTitle[i];
-					j++;
-				}
-			}
-			sceIoClose(fd);
-		}
-	}
 	return 0;
+}
+
+// reset titles for new dump/scan
+static void clearTitles(void) {
+	gameSfoTitle[0]  = '\0';
+	videoSfoTitle[0] = '\0';
+	audioSfoTitle[0] = '\0';
+	updaterSfoTitle[0] = '\0';
 }
 
 // write contents of umdreadbuffer to iso, dumping disc to iso
@@ -257,22 +383,46 @@ int dump(){
 		// UMD Info vdisplay
 		if(display == 0) {
 			titleBar;
-			if (umdDriveStatus) { 
-				screenSet(0, 4);
-				printf("UMD Info: %s", umddatabin);
-				screenSet(7, 6);
-				printf("%14s%s", "SFO Title: ", (gtype[0] == 'G') ? sfoTitle : parsedSfoTitle);
-				screenSet(7, 8);
-				printf("%14s%s", "Type: ", (gtype[0] == 'G') ? "Game" : "Video");
-				screenSet(7, 10);
+			if (umdDriveStatus) {
+				int row = 4;
+				screenSet(7, row);
+				printf("%14s%s", "UMD Info: ", umddatabin);
+				
+				//Game Disc
+				if (gameSfoTitle[0]) {
+					screenSet(7, row += 2);
+					printf("%14s%s", "Game Title: ", gameSfoTitle);
+				}
+				
+				//Video Disc
+				if (videoSfoTitle[0]) {
+					screenSet(7, row += 2);
+					printf("%14s%s", "Video Title: ", videoSfoTitle);
+				}
+				
+				//Audio Disc
+				if (audioSfoTitle[0]) {
+					screenSet(7, row += 2);
+					printf("%14s%s", "Audio Title: ", audioSfoTitle);
+				}
+				
+				/*Updater (not here yet, looks bad because TM symbol
+				if (updaterSfoTitle[0]) {
+					screenSet(6, row += 2);
+					printf("%14s%s", "Updater Title: ", updaterSfoTitle);
+				}*/	
+				
+				screenSet(7, row += 2);
+				printf("%14s%s", "Type: ", discTypeDisplay);
+				screenSet(7, row += 2);
 				printf("%14s%s", "Disc ID: ", discid);
-				screenSet(7, 12);
+				screenSet(7, row += 2);
 				printf("%14s%d", "Total LBA: ", umdlastlba);
-				screenSet(7, 14);
+				screenSet(7, row += 2);
 				printf("%14s%d", "Size (bytes): ", bytes);
-				screenSet(7, 16);
+				screenSet(7, row += 2);
 				printf("%14s%.2f", "Size (MB): ", megabytes);
-				screenSet(7, 18);
+				screenSet(7, row += 2);
 				printf("%14s%.2f", "Size (GB): ", gigabytes);
 				//screenSet(7, 20);
 				//printf("%14s%s", "ISO Path: ", isopath);
@@ -365,6 +515,7 @@ int dump(){
 
 		// press square to mount UMD (control)
 		if (pad.Buttons & PSP_CTRL_SQUARE) {
+			clearTitles(); //clear titles that may be present from previous dump
 			if (umdDriveStatus == 0){ //not yet activated
 				if(sceUmdCheckMedium() == 0) {
 					sceUmdWaitDriveStat(PSP_UMD_PRESENT);
@@ -400,6 +551,7 @@ int dump(){
 				umdDriveStatus = 0;
 				//break;
 			}
+			pspDebugScreenClear(); // blank screen
 		
 			sceKernelDelayThread(1000 * 100 * 2);
 		}
@@ -447,7 +599,7 @@ int dump(){
 					}
 					
 					// define and create absolute path directory variable to create subdirectory
-					char absDir[80];
+					char absDir[151];
 					sprintf(absDir, "ms0:/UMD/%s",  destName);
 					SceUID checkUmdSubDir = sceIoDopen(absDir);
 					if (checkUmdSubDir < 0) {
@@ -460,7 +612,7 @@ int dump(){
 					else {
 						//strcat(outputDir,discid);
 						char append = 1; 
-						char apDir[64];
+						char apDir[135];
 						sprintf(apDir, "ms0:/UMD/%s",  destName);
 						// while loop breaks to increment and find a unique name
 						while(sceIoDopen(absDir) >= 0) {
