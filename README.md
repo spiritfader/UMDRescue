@@ -19,4 +19,16 @@ decided to bump security up on runlevel permissions later on in higher Firmwares
 - Run UMDRescue
 
 
+## Contributing
 
+If you want to compile it yourself, this project is built and compiled against this custom [SDK docker image](https://hub.docker.com/r/spiritfader/pspdev-plus). 
+
+``podman pull spiritfader/pspdev-plus:latest``
+
+Instructions on how to use this SDK docker image to compile can be found in the [dockerfile repo for this image](https://github.com/spiritfader/pspdev-plus). 
+
+**Use this SDK** as compiling with other SDKs (either containzerized or manually) run the risk of creating compatibility issues as well as making it harder to reproduce said bugs/issues. 
+
+Also I don't use windows cause that shit sucks so especially use this SDK if you run windows.
+
+Basically you can **expect most issues to be ignored unless you're using this SDK** to compile with.
