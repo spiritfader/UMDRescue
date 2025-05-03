@@ -1,5 +1,5 @@
 TARGET := UMDRescue
-VERSION := v2.20
+VERSION := v2.21
 UNIXTIME := "$(shell date +%s)"
 RELEASENAME := "$(TARGET)-$(VERSION)-($(UNIXTIME))"
 BUILD := \"$(TARGET)\ $(VERSION)\"
@@ -21,7 +21,6 @@ PSPDEV := $(shell psp-config --psp-prefix)
 
 DEFINE := -DBUILD=$(BUILD) -D_PSP_FW_VERSION=$(_PSP_FW_VERSION)
 WARNINGS := -Wall -Wextra
-
 override OBJS := main.o #oe_malloc.o
 override INCLUDE := -I. -I$(PSPDEV)/include -I$(PSPSDK)/include
 override CC := psp-gcc
@@ -60,7 +59,7 @@ endif
 
 all: kxploit standalone
 	@echo
-	if command -v 7z > /dev/null;then 7z a release/$(RELEASENAME).7z ./PSP/* > /dev/null;fi
+	if command -v 7z > /dev/null;then 7z a release/$(RELEASENAME).zip ./PSP/* > /dev/null;fi
 
 clean:
 	@echo

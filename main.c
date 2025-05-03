@@ -19,7 +19,6 @@
  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-// includes
 #include <pspsdk.h>
 #include <pspctrl.h>
 #include <pspdebug.h>
@@ -38,6 +37,15 @@
 	#define BUILD { 0 }
 #endif
 
+#ifdef PRX
+	#define BUILDPRX BUILD " (PRX Mode)"
+	char version[128] = BUILDPRX;
+#endif
+
+#ifndef PRX
+	char version[128] = BUILD;
+#endif
+
 // macro pspDebugScreenPrintf to printf, 2048 to SECTOR_SIZE, and limit RGB params 
 #define printf pspDebugScreenPrintf
 #define screenSet pspDebugScreenSetXY
@@ -49,59 +57,39 @@
 screenSet(0, 32);printf("    COLOR       DISPLAY   MOUNT UMD   DUMP  CANCEL DUMP      Exit   ");
 
 char status_clear[128] = {0};
-#define clearStatus screenSet(0, 29);printf("%s", status_clear); //pspdebugprintf does not appear to actually overwrite trailing spaces so this doesn't strictly work at the moment, need more research
+#define clearStatus screenSet(0, 28);printf("\n\n"); //pspdebugprintf does not appear to actually overwrite trailing spaces so this doesn't strictly work at the moment, need more research
 
 #define RGB(r, g, b) ((r) | ((g) << 8) | ((b) << 16))
 #define SECTOR_SIZE 0x800
 SceCtrlData pad;
 
-// call external funcs - not using oe_malloc anymore
-//extern void* oe_malloc(size_t size);
-//extern void oe_free(void*);
-
 // define psp module as user module
 PSP_MODULE_INFO("UMDRescue", PSP_MODULE_USER, 1, 0);
 
-char* umdreadbuffer = NULL;
+char* umdreadbuffer = NULL; // buffer to hold the contents of the umd as its read
+char umddatabin[49] = { 0 }; //umd_data.bin will always be 48 char, this is for strtok
+char umd_databin[49]; // full container for umd_data.bin to output
 
-char umddatabin[96] = { 0 };
-//char *discid, *guid, *region, *type;
+char *discid; // first field of umd_data.bin, can be from 10 to 27 char (length of discid & guid is shared to a max of 27) will never be empty
+char *guid; // second field of umd_data.bin,  can be from 0 to 16 char length CAN be empty
+char *mode_attr; // third field of umd_data.bin, will always be either 0001 (user mode) or 0002 (kernel mode)
+char *umdtype; // fourth field of umd_data.bin, will be any combination of GVA (ie; G, or GV, or V, or VA)
 
-char discid[25]; // first field of umd_data.bin
-char guid[15]; // second field of umd_data.bin
-char region[3]; // third field of umd_data.bin
-char type[13]; // fourth field of umd_data.bin
-
+char empty[2048] = { 0 };
 char sfoTitle[128] = { 0 }; // title from PARAM.SFO
-//char isopath[31] = { 0 };
 char isopath[128] = { 0 };
-char gtype[3] = { 0 }; // type of disc from fourth field of umd_data.bin
 char parsedSfoTitle[256] = { 0 }; // parsed title from PARAM.SFO to remove invalid characters 
-//char parsedDiscId[17] = { 0 }; // parsed discid from first field of umd_data.bin to remove invalid characters
-
 char status[128] = "Disc not mounted - safe to insert new UMD";
-int umdDriveStatus = 0;
 
-
-#ifdef PRX
-	#define BUILDPRX BUILD " (PRX Mode)"
-	char version[128] = BUILDPRX;
-#endif
-
-#ifndef PRX
-	char version[128] = BUILD;
-#endif
-
-//pspUmdInfo umdType;
-
-SceUID threadnumber, lbaread, umdlastlba, isosize, dumppercent, lbawritten, sec = -1;
-SceUID umd, iso, fd, threadlist[66], st_thlist_first[66], st_thnum_first = -1;
-static int color = 0;
-static int display = 0;
+int umdDriveStatus = 0, dirNumLinesParsed = 0, fix = 0;
 float cpufreq = 0.0, busfreq = 0.0;
 
-static int num_colors = 5;
+SceUID lbaread, umdlastlba, isosize, dumppercent, lbawritten, umd, iso, fd;
+
+static int color = 0, display = 0, num_colors = 5;
 static uint32_t COLORS[5] = {RGB(0, 255, 0),RGB(255, 0, 255),RGB(255, 191, 0),RGB(55, 255, 255),RGB(255, 255, 255)};
+
+//pspUmdInfo umdDiscType;
 
 // parse UMD_DATA.bin to derive common disc info fields
 int parse_umd_data(void) {
@@ -109,19 +97,12 @@ int parse_umd_data(void) {
 	if (fd >= 0) {
 		sceIoLseek(fd, 0, SEEK_SET);
 		sceIoRead(fd, umddatabin, 96);
-		
-		// queue read to determine type from umd_data.bin
-		sceIoLseek(fd, 0x21, SEEK_SET);
-		sceIoRead(fd, gtype, 3);
-
-		// queue read to determine disc id from umd_data.bin
-		// read until offset 00000010 into discid variable from "disc0:/UMD_DATA.BIN"
-		sceIoLseek(fd, 0, SEEK_SET);
-		if(gtype[0] == 'G') {
-			sceIoRead(fd, discid, 10);
-		}
-
-	sceIoClose(fd);
+		strcpy(umd_databin, umddatabin);
+		discid = strtok(umddatabin, "|");
+		guid = strtok(NULL, "|");
+		mode_attr = (strtok(NULL, "|") + 3);
+		umdtype = strtok(NULL, "|");
+		sceIoClose(fd);
 	}
 	else {
 		return -1;
@@ -135,7 +116,7 @@ int parse_umd_data(void) {
 	}
 
 	//determines content name from gtype variable and "PARAM.SFO" located in "/PSP_GAME" or "/UMD_VIDEO"
-	if (gtype[0] == 'G') {
+	if (umdtype[0] == 'G') {
 		fd = sceIoOpen("disc0:/PSP_GAME/PARAM.SFO", PSP_O_RDONLY, 0777);
 		if (fd >= 0) {
 			sceIoLseek(fd, 0x158, SEEK_SET);
@@ -145,7 +126,7 @@ int parse_umd_data(void) {
 		}
 	}
 
-	else if (gtype[0] == 'V') {
+	else if (umdtype[0] == 'V') {
 		fd = sceIoOpen("disc0:/UMD_VIDEO/PARAM.SFO", PSP_O_RDONLY, 0777);
 		if (fd >= 0) {
 			sceIoLseek(fd, 0x74, SEEK_SET);
@@ -172,6 +153,90 @@ int parse_umd_data(void) {
 	return 0;
 }
 
+void msproDiagnostics() {
+	int fd = sceIoOpen("ms0:/", PSP_O_RDONLY, 0777); 
+	//char fsType = read in from location to determine type of filesystem
+	if (fd >= 0) {
+		SceUID mslastlba = sceIoLseek(fd, 0x1BE, SEEK_SET);
+		printf("Partition Type: %02X\n", mslastlba);
+		//int msTotal = (mslastlba * 512);
+		//printf("%d", mslastlba);
+		//printf("%d", msTotal);
+		sceIoClose(fd);
+	}
+	//switch () {//fsType){
+	//	case (FAT16){
+	//	}
+	//	case (FAT32){
+	//		
+	//	}
+	//}
+	return;
+}
+
+void dirLoop(SceUID fd, SceIoDirent dir, char *path, int li) {
+	if (fd >= 0) {
+		while (sceIoDread(fd, &dir) > 0) {
+			SceMode mode = dir.d_stat.st_mode;
+			int fileType = (mode & 0x0F000) >> 12;
+			int systemExecute = (mode & 0x01);
+			int systemWrite = (mode & 0x02) >> 1;
+			int systemRead = (mode & 0x04) >> 2;
+			int groupExecute = (mode & 0x010) >> 4;
+			int groupWrite = (mode & 0x020) >> 5;
+			int groupRead = (mode & 0x040) >> 6;
+			int userExecute = (mode & 0x0100) >> 8;
+			int userWrite = (mode & 0x0200) >> 9;
+			int userRead = (mode & 0x0400) >> 10;
+
+			int currentY = pspDebugScreenGetY();
+			if (currentY > 27) {
+				break;
+			}
+
+			char fileTypeLetter = '-';
+			if (fileType == 4) {
+				fileTypeLetter = 'l';
+			}
+			else if (fileType == 1){
+				fileTypeLetter = 'D';
+			}
+			int allPerms[9] = {userRead, userWrite, userExecute, groupRead, groupWrite, groupExecute, systemRead, systemWrite, systemExecute};
+			char allPermsStr[10] = "rwxrwxrwx";
+			for (int j = 0; j < 9; j++) {
+				if (!(allPerms[j])) {
+					allPermsStr[j] = '-';
+				}
+			}
+			if (fileTypeLetter == 'D') {
+				if ((strcmp(dir.d_name,".") != 0) && (strcmp(dir.d_name,"..") != 0)) {
+					if(dirNumLinesParsed >= li) {
+						printf("%c%-9s %7lld %s\n", fileTypeLetter, allPermsStr, (dir.d_stat.st_size), dir.d_name);
+					}
+					dirNumLinesParsed++;
+					char newPath[256] = { 0 };
+					strcpy(newPath, path);
+					strcat(newPath, dir.d_name);
+					strcat(newPath, "/");
+					SceUID newFD = sceIoDopen(newPath);
+					SceIoDirent newDir;
+					dirLoop(newFD, newDir, newPath, li);
+				}
+			}
+			// print all files
+			else {
+				if(dirNumLinesParsed >= li) {
+					printf("%c%-9s %7lld %s\n", fileTypeLetter, allPermsStr, (dir.d_stat.st_size), dir.d_name);
+				}
+				dirNumLinesParsed++;
+			}
+		}
+		sceIoDclose(fd);
+	}
+	return;
+}
+
+
 // write contents of umdreadbuffer to iso, dumping disc to iso
 int dumpSector(void) {
 	SceUID written = sceIoWrite(iso, umdreadbuffer, lbaread * SECTOR_SIZE);
@@ -187,39 +252,50 @@ int dumpSector(void) {
 
 		// Print status of current dump through assigning lbaread to lbawritten
 		lbawritten += lbaread;
-		dumppercent = (lbawritten * 100) / umdlastlba;
+		dumppercent = (lbawritten * 100) / (umdlastlba + 1);
 		return 0;
 }
 
+// display and edit settings menu
+//settingsMenu() {
+//
+//}
+
+//metadataRetrieval(int ) {
+//	
+//}
+
+
 // menu and display functionality
 int dump(){
-	pspDebugScreenClear();
 	
+	pspDebugScreenClear();
+
 	cpufreq = scePowerGetCpuClockFrequencyFloat();
 	busfreq = scePowerGetBusClockFrequencyFloat();
 
-	int dump_in_progress = 0, bytes=0;
-	float megabytes=0.0, gigabytes=0.0;
-	
+	int dump_in_progress = 0, bytes = 0, li= 0;
+	float megabytes = 0.0, gigabytes = 0.0;
+
 	// malloc 1MB of memory for the umdread buffer 
 	umdreadbuffer = (char*)malloc(512 * SECTOR_SIZE);
-	
-	// While loop to present disc information until Start is pressed (exiting) or X is pressed (exiting loop and following code logic)
-	do {
 
+	// While loop to display multi-screens of info ie; main menu
+	do {
+		sceDisplayWaitVblankStart();
 		// determine battery life and output charging status
-		//int batLifetimeMin = scePowerGetBatteryLifeTime();
-		//int batTimeHours = (batLifetimeMin / 60);
-		//int batTimeMinRemain = (batLifetimeMin % 60);
-		//int batPercentLeft = scePowerGetBatteryLifePercent();
+		int batLifetimeMin = scePowerGetBatteryLifeTime();
+		int batTimeHours = (batLifetimeMin / 60);
+		int batTimeMinRemain = (batLifetimeMin % 60);
+		int batPercentLeft = scePowerGetBatteryLifePercent();
 
 		if(sceUmdCheckMedium() == 0) {
 			strcpy(status, "No UMD Inserted - please insert one now.");
 			clearStatus;
 		}
+
 		// poll for input
 		sceCtrlPeekBufferPositive(&pad, 1);
-
 		// Change color of command output and define color based on control logic
 		if((pad.Buttons & PSP_CTRL_LTRIGGER)==PSP_CTRL_LTRIGGER) {
 			color++;
@@ -233,25 +309,38 @@ int dump(){
 		if(color<0) color = (num_colors - 1);
 		pspDebugScreenSetTextColor(COLORS[color]);
 
-		// Navigate display output screens and define display based on control logic
+		// change display screens horizontally and define display based on control logic
 		if((pad.Buttons & PSP_CTRL_LEFT)==PSP_CTRL_LEFT) {
-			pspDebugScreenClear(); // blank screen
+			clearScreen; // blank screen
+			li = 0;
 			display++;
 			sceKernelDelayThread(1000 * 100 * 2);
 		}
 		if((pad.Buttons & PSP_CTRL_RIGHT)==PSP_CTRL_RIGHT) {
-			pspDebugScreenClear(); // blank screen
+			clearScreen;; // blank screen
+			li = 0;
 			display--;
 			sceKernelDelayThread(1000 * 100 * 2);
 		}
 		//display 2 should only be visible while dumping
 		if (dump_in_progress) {
+			if(display>3) display = 0;
+			if(display<0) display = 3;
+		}
+		else {
 			if(display>2) display = 0;
 			if(display<0) display = 2;
 		}
-		else {
-			if(display>1) display = 0;
-			if(display<0) display = 1;
+		// change display screens vertically (scroll) and define display based on control logic
+		if((pad.Buttons & PSP_CTRL_DOWN)==PSP_CTRL_DOWN) {
+			//clearScreen; // blank screen
+			li++;
+			sceKernelDelayThread(1000 * 10 * .273);
+		}
+		if((pad.Buttons & PSP_CTRL_UP)==PSP_CTRL_UP) {
+			//clearScreen;; // blank screen
+			li--;
+			sceKernelDelayThread(1000 * 10 * .273);
 		}
 
 		// UMD Info vdisplay
@@ -259,23 +348,21 @@ int dump(){
 			titleBar;
 			if (umdDriveStatus) { 
 				screenSet(0, 4);
-				printf("UMD Info: %s", umddatabin);
+				printf("UMD_DATA.BIN: %s", umd_databin);
 				screenSet(7, 6);
-				printf("%14s%s", "SFO Title: ", (gtype[0] == 'G') ? sfoTitle : parsedSfoTitle);
+				//printf("%14s%s", "SFO Title: ", (umdtype[0] == 'G') ? sfoTitle : parsedSfoTitle);
 				screenSet(7, 8);
-				printf("%14s%s", "Type: ", (gtype[0] == 'G') ? "Game" : "Video");
+				printf("%14s%s", "Type: ", umdtype);
 				screenSet(7, 10);
 				printf("%14s%s", "Disc ID: ", discid);
 				screenSet(7, 12);
-				printf("%14s%d", "Total LBA: ", umdlastlba);
+				printf("%14s%d", "Total LBA: ", (umdlastlba + 1));
 				screenSet(7, 14);
 				printf("%14s%d", "Size (bytes): ", bytes);
 				screenSet(7, 16);
 				printf("%14s%.2f", "Size (MB): ", megabytes);
 				screenSet(7, 18);
 				printf("%14s%.2f", "Size (GB): ", gigabytes);
-				//screenSet(7, 20);
-				//printf("%14s%s", "ISO Path: ", isopath);
 			}
 			else {
 				screenSet(2, 16);
@@ -284,21 +371,22 @@ int dump(){
 			statusBar;
 			footer;
 		}
+
 		// System information vdisplay
 		else if(display == 1) {
 			titleBar;
 			screenSet(0, 4);
 			printf("Sysinfo:");
-			//screenSet(3, 6);
-			//if (!scePowerIsBatteryExist()) {
-			//	printf("%23s%s", "Battery: ", "No Battery Dectected");
-			//}
-			//else if (!scePowerIsBatteryCharging()) {
-			//	printf("%23s%d%s%d%s%d%s", "Battery: ", batPercentLeft, "% (", (batTimeHours), ":", batTimeMinRemain, ") remaining");
-			//}
-			//else {
-			//	printf("%23s%d%s%s", "Battery: ", batPercentLeft, "% ", "(charging)");
-			//}
+			screenSet(3, 6);
+			if (!scePowerIsBatteryExist()) {
+				printf("%23s%s", "Battery: ", "No Battery Dectected");
+			}
+			else if (!scePowerIsBatteryCharging()) {
+				printf("%23s%d%s%d%s%d%s", "Battery: ", batPercentLeft, "% (", (batTimeHours), ":", batTimeMinRemain, ") remaining");
+			}
+			else {
+				printf("%23s%d%s%s", "Battery: ", batPercentLeft, "% ", "(charging)");
+			}
 			screenSet(3, 8);
 			printf("%23s%d", "Firmware Version: ", sceKernelDevkitVersion());
 			screenSet(3, 10);
@@ -311,28 +399,74 @@ int dump(){
 			footer;
 		}
 
-		// stdout screen vdisplay
+		// disc contents vdisplay
+		else if(display == 2) {
+			titleBar;
+			screenSet(0, 4);
+			printf("Disc Contents:");
+			screenSet(0, 5);printf("\n");
+			SceIoDirent dir;
+			SceUID fd;
+			char path[] = "disc0:/";
+			fd = sceIoDopen(path);
+			if(li < 0) {
+				li = 0;
+			}
+			dirNumLinesParsed = 0;
+			dirLoop(fd, dir, path, li);
+			if ((dirNumLinesParsed < (li+21)) && (li > 0)) {
+				li--;
+			}
+			statusBar;
+			footer;
+		}
+
+		// memory stick diagnostics vdisplay
 		//else if(display == 3) {
-		//	titlebar;
+		//	titleBar;
 		//	screenSet(0, 4);
-		//	printf("STDOUT:");
-		//	screenSet(7, 6);
-		// 	statusBar;
+		//	printf("MS Diagnostics:");
+		//	screenSet(0, 5);printf("\n");
+		//	msproDiagnostics();
+		//	//SceIoDirent dir;
+		//	//SceUID fd;
+		//	//char path[] = "ms0:/";
+		//	//fd = sceIoDopen(path);
+		//	//if(li < 0) {
+		//	//	li = 0;
+		//	//}
+		//	//dirNumLinesParsed = 0;
+		//	//dirLoop(fd, dir, path, li);
+		//	//if ((dirNumLinesParsed < (li+21)) && (li > 0)) {
+		//	//	li--;
+		//	//}
+		//	statusBar;
+		//	footer;
+		//}
+
+		// stdout test vdisplay
+		//else if(display == 4) {
+		//	titleBar;
+		//	screenSet(0, 4);
+		//	printf("STDOUT: ");
+		//	char msg[] = "this is a test";
+		//	sceIoWrite(sceKernelStdout(), msg, strlen(msg));
+		//	sceIoOpen("tty1:", )
+		//	statusBar;
 		//	footer;
 		//}
 
 		// dump status vdisplay
-		else if(display == 2) {
+		else if(display == 3) {
 			titleBar;
 			screenSet(0, 13);
 			printf("Writing to %s", isopath);
 			screenSet(0, 15);
-			printf("Writing Sectors: %d/%d - %d%% ", lbawritten, umdlastlba, dumppercent);
+			printf("Writing Sectors: %d/%d - %d%% ", lbawritten, (umdlastlba + 1), dumppercent);
 			screenSet(0, 17);
-			printf("Writing Bytes: %d/%d - %d%% ", lbawritten * SECTOR_SIZE, umdlastlba * SECTOR_SIZE, dumppercent);
+			printf("Writing Bytes: %d/%d - %d%% ", lbawritten * SECTOR_SIZE, (umdlastlba + 1) * SECTOR_SIZE, dumppercent);
 			screenSet(0, 19);
 			printf("Dump Status: %s", status);
-			
 			//if ((dump_in_progress == 0) && (((isosize) != (umdlastlba*SECTOR_SIZE)) && (isosize > 0))) {
 			//	screenSet(0, 21);
 			//	printf("WARNING: ISO size doesn't match UMD size\n\n");
@@ -344,7 +478,8 @@ int dump(){
 
 		sceDisplayWaitVblankStart(); // Wait for vertical blank start
 
-		if (pad.Buttons & PSP_CTRL_TRIANGLE) { // if triangle is pressed, free memory and quit program
+		// press triangle to free mem and exit program
+		if (pad.Buttons & PSP_CTRL_TRIANGLE) {
 			if (!dump_in_progress) {
 				free(umdreadbuffer);
 				return 0;
@@ -354,6 +489,7 @@ int dump(){
 
 		// press circle to cancel in-progress dump
 		if ((pad.Buttons & PSP_CTRL_CIRCLE) && (dump_in_progress)) {
+			clearScreen;
 			dump_in_progress = 0;
 			sceIoClose(umd);
 			sceIoClose(iso);
@@ -365,6 +501,7 @@ int dump(){
 
 		// press square to mount UMD (control)
 		if (pad.Buttons & PSP_CTRL_SQUARE) {
+			clearScreen;
 			if (umdDriveStatus == 0){ //not yet activated
 				if(sceUmdCheckMedium() == 0) {
 					sceUmdWaitDriveStat(PSP_UMD_PRESENT);
@@ -373,12 +510,12 @@ int dump(){
 				sceUmdActivate(1, "disc0:"); // Mount UMD to disc0: file system
 				sceUmdWaitDriveStat(PSP_UMD_READY);
 				//sceUmdReplaceProhibit();
-				
+
 				sprintf(status, "Disc mounted: awaiting metadata");
 				clearStatus;
 				umdDriveStatus = 1;
 				if (parse_umd_data() >= 0) {
-					bytes = (umdlastlba * SECTOR_SIZE);
+					bytes = ((umdlastlba + 1) * SECTOR_SIZE);
 					megabytes = ((bytes / 1024.0) / 1024.0);
 					gigabytes = (megabytes / 1024.0);
 					sprintf(status, "Ready to Dump");
@@ -386,7 +523,6 @@ int dump(){
 				}
 				else {
 					sprintf(status, "Failed to read UMD metadata: please make sure a disc is inserted");
-					clearStatus;
 					sceUmdDeactivate(1, "disc0:"); // unmount umd
 					//sceUmdReplacePermit();
 					umdDriveStatus = 0;  
@@ -396,21 +532,21 @@ int dump(){
 				sceUmdDeactivate(1, "disc0:"); // unmount umd
 				//sceUmdReplacePermit();
 				sprintf(status, "Disc not mounted: safe to insert new UMD");
-				clearStatus;
 				umdDriveStatus = 0;
 				//break;
 			}
-		
 			sceKernelDelayThread(1000 * 100 * 2);
 		}
-		// dump start dump logic with X 
+		// press X to start dump logic
+		
 		if (pad.Buttons & PSP_CTRL_CROSS){
+			clearScreen;
 			//insert time function to measure elapsed time
 			if (!dump_in_progress) {
 				dump_in_progress = 1;
 				sprintf(status, "Dumping...");
 				clearStatus;
-				umd = sceIoOpen("umd0:", PSP_O_RDONLY, 0777); // Open UMD disc in read-only mode and throw error if unsuccessful
+				umd = sceIoOpen("umd0:", PSP_O_RDONLY, 7777); // Open UMD disc in read-only mode and throw error if unsuccessful
 				if (umd < 0) {
 					sprintf(status, "Can't open UMD");
 					clearStatus;
@@ -420,14 +556,13 @@ int dump(){
 						//sceUmdReplacePermit();
 						umdDriveStatus = 0;
 					}
-					sceKernelDelayThread(1000 * 100 * 2);
-					//continue;
+					sceKernelDelayThread(1000 * 100 * .273);
 				}
 				else {
 					// format/sanitize discid of erroneous chars to be used as the ISO name  
-					char destName[sizeof(discid)] = "";
+					char destName[28] = "";
 					strcpy(destName, discid);
-					char invalidChar[3] = {' ',':',','};
+					char invalidChar[16] = {' ',':','/','(',')','!','&','?','\'','<','>','"','\\','|','*','^'};
 					char *endDest = strchr(destName, '\0');
 					for (char *midDest = destName; midDest < endDest; midDest++) {
 						char *strTest=strchr(invalidChar, *midDest);
@@ -445,7 +580,7 @@ int dump(){
 							clearStatus;
 						}
 					}
-					
+
 					// define and create absolute path directory variable to create subdirectory
 					char absDir[80];
 					sprintf(absDir, "ms0:/UMD/%s",  destName);
@@ -479,8 +614,7 @@ int dump(){
 					sceIoDclose(checkUmdParDir);
 					sceIoDclose(checkUmdSubDir);
 
-					// set isopath to be the combination of outputDir/filename.iso
-
+					// set isopath to be the combination of absoluteDir/filename.iso
 					sprintf(isopath, "%s/%s.iso",  absDir, destName);
 					
 					// open iso file descriptor from isopath for writing
@@ -510,13 +644,13 @@ int dump(){
 				// enable the umd dump status screen and delay
 				sceKernelDelayThread(1000 * 100 * 2);
 			}
-			display = 3;
+			display = 4;
 		}
 		// dump the disc sector by sector
 		if (dump_in_progress) {
 			if((lbaread = sceIoRead(umd, umdreadbuffer, 512))>0) {
 				//int sector_status = dumpSector();
-				sprintf(status, "Writing Sectors: %d/%d - %d%% ", lbawritten, umdlastlba, dumppercent);
+				sprintf(status, "Writing Sectors: %d/%d - %d%% ", lbawritten, (umdlastlba + 1), dumppercent);
 				clearStatus;
 				if(dumpSector()) {
 					dump_in_progress = 0;
@@ -533,18 +667,20 @@ int dump(){
 				clearStatus;
 			}
 			if (!dump_in_progress) {
+				if (fix) {
+					sceIoWrite(iso, empty, SECTOR_SIZE);
+				}
 				sceIoClose(iso);
 				fd = sceIoOpen(isopath, PSP_O_RDONLY, 0777);
 				if (fd >= 0) {
 					isosize = sceIoLseek(fd, 0, SEEK_END);
 					sceIoClose(fd);
-					if ((isosize) != ((umdlastlba) * SECTOR_SIZE)) { // removed 1 because no off by one error
-						sceIoRemove(isopath); //COMMENTED OUT FOR TESTING, UNCOMMENT FOR RELEASE
-						sprintf(status, "Bad dump; ISO size: %d =/= UMD Size: %d.", isosize, ((umdlastlba) * SECTOR_SIZE));
+					if ((isosize) != ((umdlastlba + 1) * SECTOR_SIZE)) {
+						//sceIoRemove(isopath); //COMMENTED OUT FOR TESTING, UNCOMMENT FOR RELEASE
+						sprintf(status, "Bad dump; ISO size: %d =/= UMD Size: %d.", isosize, (umdlastlba + 1));
 						clearStatus;
 					}
 				}
-
 				// close the umd file descriptor 
 				// for future reference, DO NOT FREE MEMORY HERE
 				// this results in a use-after-free/double-free on any dumps after the first one
@@ -557,7 +693,6 @@ int dump(){
 }
 
 // setup main function with psp threading logic
-//int main(SceUID argc, char** argsv) { //superfluous arguments, unused 
 int main(void) {
 	pspDebugScreenInit(); // screenSet(X,Y) has a max of '68x34' character units (1 character = 8 pixels)
 	pspDebugScreenSetBackColor(RGB(0, 0, 0)); // set background color
@@ -574,6 +709,8 @@ int main(void) {
 	}
 	else {
 		strcat(version," (1.5 Mode)");
+		fix = 1; 
+
 	}
 
 	// initialize program thread and exit if dump function is exited
