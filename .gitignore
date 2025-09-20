@@ -5,7 +5,7 @@
 .vscode
 PARAM*
 data.psp
-PSP/
+docs
 release/
 psptools/psptool/__pycache__/
 psptools/psptool/prxtypes/__pycache__/

@@ -89,8 +89,6 @@ SceUID lbaread, umdlastlba, isosize, dumppercent, lbawritten, umd, iso, fd;
 static int color = 0, display = 0, num_colors = 5;
 static uint32_t COLORS[5] = {RGB(0, 255, 0),RGB(255, 0, 255),RGB(255, 191, 0),RGB(55, 255, 255),RGB(255, 255, 255)};
 
-//pspUmdInfo umdDiscType;
-
 // parse UMD_DATA.bin to derive common disc info fields
 int parse_umd_data(void) {
 	fd = sceIoOpen("disc0:/UMD_DATA.BIN", PSP_O_RDONLY, 0777);
@@ -153,29 +151,8 @@ int parse_umd_data(void) {
 	return 0;
 }
 
-void msproDiagnostics() {
-	int fd = sceIoOpen("ms0:/", PSP_O_RDONLY, 0777); 
-	//char fsType = read in from location to determine type of filesystem
-	if (fd >= 0) {
-		SceUID mslastlba = sceIoLseek(fd, 0x1BE, SEEK_SET);
-		printf("Partition Type: %02X\n", mslastlba);
-		//int msTotal = (mslastlba * 512);
-		//printf("%d", mslastlba);
-		//printf("%d", msTotal);
-		sceIoClose(fd);
-	}
-	//switch () {//fsType){
-	//	case (FAT16){
-	//	}
-	//	case (FAT32){
-	//		
-	//	}
-	//}
-	return;
-}
-
-void dirLoop(SceUID fd, SceIoDirent dir, char *path, int li) {
-	if (fd >= 0) {
+void dirLoop(SceUID dirLoopfd, SceIoDirent dir, char *path, int li) {
+	if (dirLoopfd >= 0) {
 		while (sceIoDread(fd, &dir) > 0) {
 			SceMode mode = dir.d_stat.st_mode;
 			int fileType = (mode & 0x0F000) >> 12;
@@ -231,44 +208,32 @@ void dirLoop(SceUID fd, SceIoDirent dir, char *path, int li) {
 				dirNumLinesParsed++;
 			}
 		}
-		sceIoDclose(fd);
+		sceIoDclose(dirLoopfd);
 	}
 	return;
 }
-
 
 // write contents of umdreadbuffer to iso, dumping disc to iso
 int dumpSector(void) {
 	SceUID written = sceIoWrite(iso, umdreadbuffer, lbaread * SECTOR_SIZE);
 
-		// if memory stick runs out of space, quit
-		if(written<0) {
-			sceIoClose(iso);
-			sceIoRemove(isopath);
-			sprintf(status, "Out of free disk space");
-			clearStatus;
-			return 1;
-		}
+	// if memory stick runs out of space, quit
+	if(written<0) {
+		sceIoClose(iso);
+		sceIoRemove(isopath);
+		sprintf(status, "Out of free disk space");
+		clearStatus;
+		return 1;
+	}
 
-		// Print status of current dump through assigning lbaread to lbawritten
-		lbawritten += lbaread;
-		dumppercent = (lbawritten * 100) / (umdlastlba + 1);
-		return 0;
+	// Print status of current dump through assigning lbaread to lbawritten
+	lbawritten += lbaread;
+	dumppercent = (lbawritten * 100) / (umdlastlba + 1);
+	return 0;
 }
-
-// display and edit settings menu
-//settingsMenu() {
-//
-//}
-
-//metadataRetrieval(int ) {
-//	
-//}
-
 
 // menu and display functionality
 int dump(){
-	
 	pspDebugScreenClear();
 
 	cpufreq = scePowerGetCpuClockFrequencyFloat();
@@ -283,6 +248,7 @@ int dump(){
 	// While loop to display multi-screens of info ie; main menu
 	do {
 		sceDisplayWaitVblankStart();
+
 		// determine battery life and output charging status
 		int batLifetimeMin = scePowerGetBatteryLifeTime();
 		int batTimeHours = (batLifetimeMin / 60);
@@ -343,7 +309,7 @@ int dump(){
 			sceKernelDelayThread(1000 * 10 * .273);
 		}
 
-		// UMD Info vdisplay
+		// umd info vdisplay
 		if(display == 0) {
 			titleBar;
 			if (umdDriveStatus) { 
@@ -406,55 +372,20 @@ int dump(){
 			printf("Disc Contents:");
 			screenSet(0, 5);printf("\n");
 			SceIoDirent dir;
-			SceUID fd;
+			SceUID dirLoopfd;
 			char path[] = "disc0:/";
-			fd = sceIoDopen(path);
+			dirLoopfd = sceIoDopen(path);
 			if(li < 0) {
 				li = 0;
 			}
 			dirNumLinesParsed = 0;
-			dirLoop(fd, dir, path, li);
+			dirLoop(dirLoopfd, dir, path, li);
 			if ((dirNumLinesParsed < (li+21)) && (li > 0)) {
 				li--;
 			}
 			statusBar;
 			footer;
 		}
-
-		// memory stick diagnostics vdisplay
-		//else if(display == 3) {
-		//	titleBar;
-		//	screenSet(0, 4);
-		//	printf("MS Diagnostics:");
-		//	screenSet(0, 5);printf("\n");
-		//	msproDiagnostics();
-		//	//SceIoDirent dir;
-		//	//SceUID fd;
-		//	//char path[] = "ms0:/";
-		//	//fd = sceIoDopen(path);
-		//	//if(li < 0) {
-		//	//	li = 0;
-		//	//}
-		//	//dirNumLinesParsed = 0;
-		//	//dirLoop(fd, dir, path, li);
-		//	//if ((dirNumLinesParsed < (li+21)) && (li > 0)) {
-		//	//	li--;
-		//	//}
-		//	statusBar;
-		//	footer;
-		//}
-
-		// stdout test vdisplay
-		//else if(display == 4) {
-		//	titleBar;
-		//	screenSet(0, 4);
-		//	printf("STDOUT: ");
-		//	char msg[] = "this is a test";
-		//	sceIoWrite(sceKernelStdout(), msg, strlen(msg));
-		//	sceIoOpen("tty1:", )
-		//	statusBar;
-		//	footer;
-		//}
 
 		// dump status vdisplay
 		else if(display == 3) {
@@ -467,6 +398,7 @@ int dump(){
 			printf("Writing Bytes: %d/%d - %d%% ", lbawritten * SECTOR_SIZE, (umdlastlba + 1) * SECTOR_SIZE, dumppercent);
 			screenSet(0, 19);
 			printf("Dump Status: %s", status);
+			// check legitimacy of dump
 			//if ((dump_in_progress == 0) && (((isosize) != (umdlastlba*SECTOR_SIZE)) && (isosize > 0))) {
 			//	screenSet(0, 21);
 			//	printf("WARNING: ISO size doesn't match UMD size\n\n");
@@ -537,8 +469,8 @@ int dump(){
 			}
 			sceKernelDelayThread(1000 * 100 * 2);
 		}
+
 		// press X to start dump logic
-		
 		if (pad.Buttons & PSP_CTRL_CROSS){
 			clearScreen;
 			//insert time function to measure elapsed time
@@ -558,6 +490,7 @@ int dump(){
 					}
 					sceKernelDelayThread(1000 * 100 * .273);
 				}
+
 				else {
 					// format/sanitize discid of erroneous chars to be used as the ISO name  
 					char destName[28] = "";
@@ -593,10 +526,10 @@ int dump(){
 					}
 					// if UMD subdirectory already exists, append number to suffix of dir path
 					else {
-						//strcat(outputDir,discid);
 						char append = 1; 
 						char apDir[64];
-						sprintf(apDir, "ms0:/UMD/%s",  destName);
+						sprintf(apDir, "ms0:/UMD/%s", destName);
+
 						// while loop breaks to increment and find a unique name
 						while(sceIoDopen(absDir) >= 0) {
 							sprintf(absDir, "%s-(%d)", apDir, append);
@@ -658,11 +591,9 @@ int dump(){
 					clearStatus;
 				}
 			}
-			//if we're finished, check image and clean up
+			// if we're finished, check image and clean up
 			else {
 				dump_in_progress = 0;
-				//if (timerActive)
-				//	stop the thing
 				sprintf(status, "Successfully wrote ISO");
 				clearStatus;
 			}
@@ -704,22 +635,23 @@ int main(void) {
 			strcat(version," (Emulator Mode)");
 		}
 		else{
-			strcat(version, " (Compat Mode)");
+			strcat(version, " (CFW Mode)");
 		}
 	}
 	else {
 		strcat(version," (1.5 Mode)");
-		fix = 1; 
-
+		fix = 1;
 	}
 
 	// initialize program thread and exit if dump function is exited
 	SceUID thid;
 	thid = sceKernelCreateThread("dump_thread", dump, 0x18, 0x10000, 0, NULL);
+
 	if(thid >= 0) {
 		sceKernelStartThread(thid, 0, NULL);
 		sceKernelWaitThreadEnd(thid, NULL);
 	}
+
 	sceKernelExitGame();
 
 	return 0;
