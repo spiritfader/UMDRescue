@@ -17,9 +17,6 @@ PSP_EBOOT := EBOOT.PBP
 _PSP_FW_VERSION := 661
 PSP_LARGE_MEMORY = 0
 
-override SFOFLAGS := -d MEMSIZE=0 -s PARENTAL_CONTROL=0 -s DISC_ID=UMDRESCUE -s VER=$(VERSION) -s DISC_TOTAL=1 -s DISC_NUMBER=1 \
--s DISC_VERSION=$(VERSION) -s REGION=32768 -s BOOTABLE=1 -s DRIVER_PATH=NULL -s PSP_SYSTEM_VER=1.00 -s CATEGORY=MG
-
 PSPSDK := $(shell psp-config --pspsdk-path)
 PSPDEV := $(shell psp-config --psp-prefix)
 
@@ -37,9 +34,10 @@ override ASFLAGS := $(CFLAGS)
 override LIBS = -lpspumd -lpspdebug -lpspdisplay -lpspge -lpspctrl -lpspnet -lpspnet_apctl -lpsppower
 override LDFLAGS = -L. -L$(PSPDEV)/lib -L$(PSPSDK)/lib -Wl,-zmax-page-size=128
 
-include $(PSPSDK)/lib/build.mak
+override SFOFLAGS := -d MEMSIZE=0 -s PARENTAL_CONTROL=0 -s DISC_ID=UMDRESCUE -s VER=$(VERSION) -s DISC_TOTAL=1 -s DISC_NUMBER=1 \
+-s DISC_VERSION=$(VERSION) -s REGION=32768 -s BOOTABLE=1 -s DRIVER_PATH=NULL -s PSP_SYSTEM_VER=1.00 -s CATEGORY=MG
 
-SFOFLAGS := -d MEMSIZE=$(EXPAND_MEMORY) $(SFOFLAGS)
+include $(PSPSDK)/lib/build.mak
 
 kxploit:
 	@echo; echo KXploit EBOOT

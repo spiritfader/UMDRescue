@@ -7,5 +7,7 @@ PARAM*
 data.psp
 docs
 release/
+assets/umdrescue-icon.png
+assets/umdrescue-background.jpg
 psptools/psptool/__pycache__/
 psptools/psptool/prxtypes/__pycache__/
